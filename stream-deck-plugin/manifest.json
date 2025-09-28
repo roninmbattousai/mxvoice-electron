@@ -1,0 +1,180 @@
+﻿{
+  "SDKVersion": 2,
+  "Name": "Mx Voice Controller",
+  "Description": "Control Mx Voice audio software",
+  "Author": "Mx Voice Team",
+  "CodePath": "code.js",
+  "Category": "Audio",
+  "CategoryIcon": "category",
+  "UUID": "com.mxvoice.streamdeck",
+  "Version": "1.0.0",
+  "Software": {
+    "MinimumVersion": "5.0"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    },
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.14"
+    }
+  ],
+  "Actions": [
+    {
+      "Name": "Play/Pause",
+      "UUID": "com.mxvoice.streamdeck.playpause",
+      "Icon": "playpause",
+      "Tooltip": "Play or pause the current audio",
+      "States": [
+        {
+          "Image": "playpause",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Stop",
+      "UUID": "com.mxvoice.streamdeck.stop",
+      "Icon": "stop",
+      "Tooltip": "Stop audio playback",
+      "States": [
+        {
+          "Image": "stop",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Volume Up",
+      "UUID": "com.mxvoice.streamdeck.volumeup",
+      "Icon": "volumeup",
+      "Tooltip": "Increase volume",
+      "States": [
+        {
+          "Image": "volumeup",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Volume Down",
+      "UUID": "com.mxvoice.streamdeck.volumedown",
+      "Icon": "volumedown",
+      "Tooltip": "Decrease volume",
+      "States": [
+        {
+          "Image": "volumedown",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Next Song",
+      "UUID": "com.mxvoice.streamdeck.next",
+      "Icon": "next",
+      "Tooltip": "Play next song",
+      "States": [
+        {
+          "Image": "next",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Previous Song",
+      "UUID": "com.mxvoice.streamdeck.previous",
+      "Icon": "previous",
+      "Tooltip": "Play previous song",
+      "States": [
+        {
+          "Image": "previous",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Quick Search",
+      "UUID": "com.mxvoice.streamdeck.search",
+      "Icon": "search",
+      "Tooltip": "Search for songs",
+      "States": [
+        {
+          "Image": "search",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Play Song",
+      "UUID": "com.mxvoice.streamdeck.playsong",
+      "Icon": "playsong",
+      "Tooltip": "Play a specific song by ID",
+      "States": [
+        {
+          "Image": "playsong",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Change Tab",
+      "UUID": "com.mxvoice.streamdeck.changetab",
+      "Icon": "category",
+      "Tooltip": "Switch to a specific hotkey tab",
+      "PropertyInspectorPath": "property_inspector.html",
+      "States": [
+        {
+          "Image": "category",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Loop Toggle",
+      "UUID": "com.mxvoice.streamdeck.loop",
+      "Icon": "playpause",
+      "Tooltip": "Toggle audio loop on/off",
+      "States": [
+        {
+          "Image": "playpause",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        },
+        {
+          "Image": "playpause",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    },
+    {
+      "Name": "Mute Toggle",
+      "UUID": "com.mxvoice.streamdeck.mute",
+      "Icon": "volumedown",
+      "Tooltip": "Toggle audio mute on/off",
+      "States": [
+        {
+          "Image": "volumedown",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        },
+        {
+          "Image": "volumedown",
+          "TitleAlignment": "bottom",
+          "ShowTitle": true
+        }
+      ]
+    }
+  ]
+}

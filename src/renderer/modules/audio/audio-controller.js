@@ -12,6 +12,7 @@ import { secureStore } from '../adapters/secure-adapter.js';
 
 // Import shared state
 import sharedState from '../shared-state.js';
+import { emitAudioEvent, AUDIO_STATES } from './audio-events.js';
 
 // Import debug logger
 let debugLog = null;
@@ -87,6 +88,30 @@ function stopPlaying(fadeOut = false) {
             result: result
           });
           // Fallback to immediate stop
+          const currentSong = sharedState.get('currentSong');
+          const now = document.getElementById('song_now_playing');
+          const songId = now?.getAttribute('songid');
+          
+          // Use stored metadata if available, otherwise fall back to DOM extraction
+          const songData = currentSong || {
+            id: songId || null,
+            title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+            artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+            category: '',
+            info: '',
+            filename: '',
+            duration: 0
+          };
+          
+          emitAudioEvent('audio:stop', {
+            audioState: AUDIO_STATES.STOPPED,
+            reason: 'manual',
+            song: songData,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Clear stored song metadata
+          sharedState.set('currentSong', null);
           sound.unload();
           resetUIState();
           return;
@@ -126,6 +151,32 @@ function stopPlaying(fadeOut = false) {
             function: 'stopPlaying'
           });
           if (sound) {
+            // Emit audio:stop event for Stream Deck integration
+            const currentSong = sharedState.get('currentSong');
+            const now = document.getElementById('song_now_playing');
+            const songId = now?.getAttribute('songid');
+            
+            // Use stored metadata if available, otherwise fall back to DOM extraction
+            const songData = currentSong || {
+              id: songId || null,
+              title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+              artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+              category: '',
+              info: '',
+              filename: '',
+              duration: 0
+            };
+            
+            emitAudioEvent('audio:stop', {
+              audioState: AUDIO_STATES.STOPPED,
+              reason: 'manual',
+              song: songData,
+              timestamp: new Date().toISOString()
+            });
+            
+            // Clear stored song metadata
+            sharedState.set('currentSong', null);
+            
             sound.unload();
             resetUIState();
           }
@@ -147,6 +198,30 @@ function stopPlaying(fadeOut = false) {
           error: error.message
         });
         // Fallback to immediate stop
+        const currentSong = sharedState.get('currentSong');
+        const now = document.getElementById('song_now_playing');
+        const songId = now?.getAttribute('songid');
+        
+        // Use stored metadata if available, otherwise fall back to DOM extraction
+        const songData = currentSong || {
+          id: songId || null,
+          title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+          artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+          category: '',
+          info: '',
+          filename: '',
+          duration: 0
+        };
+        
+        emitAudioEvent('audio:stop', {
+          audioState: AUDIO_STATES.STOPPED,
+          reason: 'manual',
+          song: songData,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Clear stored song metadata
+        sharedState.set('currentSong', null);
         sound.unload();
         resetUIState();
       });
@@ -156,6 +231,33 @@ function stopPlaying(fadeOut = false) {
         function: 'stopPlaying',
         fadeOut: fadeOut
       });
+      
+      // Emit audio:stop event for Stream Deck integration
+      const currentSong = sharedState.get('currentSong');
+      const now = document.getElementById('song_now_playing');
+      const songId = now?.getAttribute('songid');
+      
+      // Use stored metadata if available, otherwise fall back to DOM extraction
+      const songData = currentSong || {
+        id: songId || null,
+        title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+        artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+        category: '',
+        info: '',
+        filename: '',
+        duration: 0
+      };
+      
+      emitAudioEvent('audio:stop', {
+        audioState: AUDIO_STATES.STOPPED,
+        reason: 'manual',
+        song: songData,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Clear stored song metadata
+      sharedState.set('currentSong', null);
+      
       sound.unload();
       resetUIState();
     }
@@ -221,6 +323,34 @@ function pausePlaying(fadeOut = false) {
         sound.on("fade", function () {
           sound.pause();
           sound.volume(old_volume);
+          
+          // Emit audio:pause event for Stream Deck integration
+          const currentSong = sharedState.get('currentSong');
+          const now = document.getElementById('song_now_playing');
+          const songId = now?.getAttribute('songid');
+          
+          // Use stored metadata if available, otherwise fall back to DOM extraction
+          const songData = currentSong || {
+            id: songId || null,
+            title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+            artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+            category: '',
+            info: '',
+            filename: '',
+            duration: 0
+          };
+          
+          // Add current position if sound is available
+          if (sound && typeof sound.seek === 'function') {
+            songData.position = Math.round(sound.seek() || 0);
+          }
+          
+          emitAudioEvent('audio:pause', {
+            audioState: AUDIO_STATES.PAUSED,
+            song: songData,
+            volume: old_volume,
+            timestamp: new Date().toISOString()
+          });
         });
         secureStore.get("fade_out_seconds").then(result => {
           if (!result.success || !result.value) {
@@ -231,6 +361,34 @@ function pausePlaying(fadeOut = false) {
             });
             // Fallback to immediate pause
             sound.pause();
+            
+            // Emit audio:pause event for Stream Deck integration
+            const currentSong = sharedState.get('currentSong');
+            const now = document.getElementById('song_now_playing');
+            const songId = now?.getAttribute('songid');
+            
+            // Use stored metadata if available, otherwise fall back to DOM extraction
+            const songData = currentSong || {
+              id: songId || null,
+              title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+              artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+              category: '',
+              info: '',
+              filename: '',
+              duration: 0
+            };
+            
+            // Add current position if sound is available
+            if (sound && typeof sound.seek === 'function') {
+              songData.position = Math.round(sound.seek() || 0);
+            }
+            
+            emitAudioEvent('audio:pause', {
+              audioState: AUDIO_STATES.PAUSED,
+              song: songData,
+              volume: sound ? sound.volume() : 1.0,
+              timestamp: new Date().toISOString()
+            });
             return;
           }
           const fadeSeconds = result.value;
@@ -239,6 +397,34 @@ function pausePlaying(fadeOut = false) {
         });
       } else {
         sound.pause();
+        
+        // Emit audio:pause event for Stream Deck integration
+        const currentSong = sharedState.get('currentSong');
+        const now = document.getElementById('song_now_playing');
+        const songId = now?.getAttribute('songid');
+        
+        // Use stored metadata if available, otherwise fall back to DOM extraction
+        const songData = currentSong || {
+          id: songId || null,
+          title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+          artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+          category: '',
+          info: '',
+          filename: '',
+          duration: 0
+        };
+        
+        // Add current position if sound is available
+        if (sound && typeof sound.seek === 'function') {
+          songData.position = Math.round(sound.seek() || 0);
+        }
+        
+        emitAudioEvent('audio:pause', {
+          audioState: AUDIO_STATES.PAUSED,
+          song: songData,
+          volume: sound ? sound.volume() : 1.0,
+          timestamp: new Date().toISOString()
+        });
       }
     } else {
       debugLog?.info('🔍 Sound is paused, playing...', { 
@@ -248,6 +434,34 @@ function pausePlaying(fadeOut = false) {
       sound.play();
       document.getElementById('song_spinner')?.classList.add('fa-spin');
       document.querySelector('#progress_bar .progress-bar')?.classList.add('progress-bar-animated', 'progress-bar-striped');
+      
+      // Emit audio:play event for Stream Deck integration
+      const currentSong = sharedState.get('currentSong');
+      const now = document.getElementById('song_now_playing');
+      const songId = now?.getAttribute('songid');
+      
+      // Use stored metadata if available, otherwise fall back to DOM extraction
+      const songData = currentSong || {
+        id: songId || null,
+        title: now?.textContent?.replace(/^\s*🔊\s*/, '')?.split(' by ')[0]?.trim() || '',
+        artist: now?.textContent?.includes(' by ') ? now.textContent.split(' by ')[1]?.trim() : '',
+        category: '',
+        info: '',
+        filename: '',
+        duration: 0
+      };
+      
+      // Add current position if sound is available
+      if (sound && typeof sound.seek === 'function') {
+        songData.position = Math.round(sound.seek() || 0);
+      }
+      
+      emitAudioEvent('audio:play', {
+        audioState: AUDIO_STATES.PLAYING,
+        song: songData,
+        volume: sound ? sound.volume() : 1.0,
+        timestamp: new Date().toISOString()
+      });
     }
   } else {
     debugLog?.info('🔍 No sound object found in shared state', { 
@@ -311,11 +525,40 @@ function loop_on(bool) {
     function: 'loop_on',
     bool: bool
   });
+  
+  // Update UI state
   if (bool == true) {
     document.getElementById('loop_button')?.classList.add('active');
   } else {
     document.getElementById('loop_button')?.classList.remove('active');
   }
+  
+  // Update shared state so audio system knows about loop setting
+  if (window.sharedState) {
+    window.sharedState.set('loop', bool);
+    debugLog?.info('🔍 Updated shared state loop setting:', { 
+      module: 'audio-controller',
+      function: 'loop_on',
+      loopEnabled: bool
+    });
+  }
+  
+  // Update current sound loop setting if there's an active sound
+  const currentSound = window.sharedState?.get('sound');
+  if (currentSound && typeof currentSound.loop === 'function') {
+    currentSound.loop(bool);
+    debugLog?.info('🔍 Updated current sound loop setting:', { 
+      module: 'audio-controller',
+      function: 'loop_on',
+      loopEnabled: bool
+    });
+  }
+  
+  debugLog?.info('� Loop state updated in audio controller', { 
+    module: 'audio-controller',
+    function: 'loop_on',
+    loopEnabled: bool
+  });
 }
 
 // Export individual functions for direct access

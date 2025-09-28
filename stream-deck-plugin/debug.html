@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mx. Voice Stream Deck Plugin Debug Console</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        
+        .header {
+            background-color: #2d2d30;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #1177bb;
+        }
+        
+        button:active {
+            background-color: #005a9e;
+        }
+        
+        .log-container {
+            background-color: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+        
+        .log-debug { color: #9cdcfe; }
+        .log-info { color: #d4d4d4; }
+        .log-warn { color: #dcdcaa; }
+        .log-error { color: #f44747; }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status.connected {
+            background-color: #388a34;
+            color: white;
+        }
+        
+        .status.disconnected {
+            background-color: #d13438;
+            color: white;
+        }
+        
+        .status.connecting {
+            background-color: #ff8c00;
+            color: white;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background-color: #2d2d30;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0e639c;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎛️ Mx. Voice Stream Deck Plugin Debug Console</h1>
+        <p>Connection Status: <span id="connectionStatus" class="status disconnected">Disconnected</span></p>
+        <p>Plugin Version: 1.0.0 | WebSocket: ws://127.0.0.1:8888</p>
+    </div>
+    
+    <div class="controls">
+        <button onclick="connectToPlugin()">Connect to Plugin</button>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <button onclick="testConnection()">Test Mx. Voice Connection</button>
+        <button onclick="exportLogs()">Export Logs</button>
+        <button onclick="toggleLogLevel()">Toggle Debug Level</button>
+    </div>
+    
+    <div class="log-container" id="logContainer">
+        <div class="log-entry log-info">[DEBUG CONSOLE] Mx. Voice Stream Deck Plugin Debug Console Ready</div>
+        <div class="log-entry log-info">[DEBUG CONSOLE] Click 'Connect to Plugin' to start monitoring</div>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-value" id="logCount">0</div>
+            <div>Total Log Entries</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="errorCount">0</div>
+            <div>Error Count</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="reconnectCount">0</div>
+            <div>Reconnection Attempts</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="uptime">00:00:00</div>
+            <div>Session Uptime</div>
+        </div>
+    </div>
+
+    <script>
+        let logCount = 0;
+        let errorCount = 0;
+        let reconnectCount = 0;
+        let sessionStart = Date.now();
+        let showDebugLogs = true;
+        
+        // Override console methods to capture plugin logs
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        function addLogEntry(level, message, data = null) {
+            if (level === 'debug' && !showDebugLogs) return;
+            
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${level}`;
+            
+            const timestamp = new Date().toISOString().substring(11, 23);
+            let logText = `[${timestamp}] ${message}`;
+            
+            if (data) {
+                logText += ` | ${JSON.stringify(data)}`;
+            }
+            
+            entry.textContent = logText;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+            
+            // Update statistics
+            logCount++;
+            if (level === 'error') errorCount++;
+            if (message.includes('reconnect')) reconnectCount++;
+            
+            updateStats();
+        }
+        
+        function updateStats() {
+            document.getElementById('logCount').textContent = logCount;
+            document.getElementById('errorCount').textContent = errorCount;
+            document.getElementById('reconnectCount').textContent = reconnectCount;
+        }
+        
+        function updateUptime() {
+            const elapsed = Date.now() - sessionStart;
+            const hours = Math.floor(elapsed / 3600000);
+            const minutes = Math.floor((elapsed % 3600000) / 60000);
+            const seconds = Math.floor((elapsed % 60000) / 1000);
+            
+            document.getElementById('uptime').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        function connectToPlugin() {
+            addLogEntry('info', 'Attempting to connect to plugin debugging interface...');
+            
+            // In a real implementation, this would connect to the plugin's debugging interface
+            // For now, we'll simulate connection and show sample logs
+            setTimeout(() => {
+                addLogEntry('info', 'Connected to plugin debugging interface');
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.getElementById('connectionStatus').className = 'status connected';
+                
+                // Simulate some plugin logs
+                addLogEntry('debug', 'Plugin initialized successfully');
+                addLogEntry('info', 'Attempting connection to Mx. Voice at ws://127.0.0.1:8888');
+                addLogEntry('warn', 'Connection failed - Mx. Voice not running');
+                addLogEntry('info', 'Scheduling reconnection attempt 1/10 in 3000ms');
+            }, 500);
+        }
+        
+        function clearLogs() {
+            const container = document.getElementById('logContainer');
+            container.innerHTML = '<div class="log-entry log-info">[DEBUG CONSOLE] Logs cleared</div>';
+            logCount = 0;
+            errorCount = 0;
+            reconnectCount = 0;
+            updateStats();
+        }
+        
+        function testConnection() {
+            addLogEntry('info', 'Testing connection to Mx. Voice...');
+            
+            // Simulate connection test
+            setTimeout(() => {
+                const ws = new WebSocket('ws://127.0.0.1:8888');
+                
+                ws.onopen = () => {
+                    addLogEntry('info', 'Connection test successful - Mx. Voice is running');
+                    ws.close();
+                };
+                
+                ws.onerror = () => {
+                    addLogEntry('error', 'Connection test failed - Mx. Voice not responding');
+                };
+            }, 100);
+        }
+        
+        function exportLogs() {
+            const container = document.getElementById('logContainer');
+            const logs = Array.from(container.children).map(el => el.textContent).join('\n');
+            
+            const blob = new Blob([logs], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mx-voice-streamdeck-logs-${new Date().toISOString().substring(0, 19)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            addLogEntry('info', 'Logs exported successfully');
+        }
+        
+        function toggleLogLevel() {
+            showDebugLogs = !showDebugLogs;
+            const button = event.target;
+            button.textContent = showDebugLogs ? 'Hide Debug Logs' : 'Show Debug Logs';
+            addLogEntry('info', `Debug logging ${showDebugLogs ? 'enabled' : 'disabled'}`);
+        }
+        
+        // Update uptime every second
+        setInterval(updateUptime, 1000);
+        updateUptime();
+        
+        // Override console to capture plugin logs when this page is used as the plugin's debug console
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLogEntry('info', args.join(' '));
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addLogEntry('warn', args.join(' '));
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLogEntry('error', args.join(' '));
+        };
+        
+        // Listen for messages from the plugin (if running in the same context)
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'plugin-log') {
+                addLogEntry(event.data.level, event.data.message, event.data.data);
+            }
+        });
+    </script>
+</body>
+</html>

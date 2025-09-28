@@ -1,0 +1,31 @@
+{
+  "SDKVersion": 2,
+  "Name": "Mx. Voice Controller",
+  "Description": "Control Mx. Voice audio software from your Stream Deck",
+  "Author": "Mx. Voice Team",
+  "CodePath": "code.js",
+  "Category": "Audio",
+  "UUID": "com.mxvoice.streamdeck",
+  "Version": "1.0.0",
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Software": {
+    "MinimumVersion": "5.0"
+  },
+  "Actions": [
+    {
+      "Name": "Play/Pause",
+      "UUID": "com.mxvoice.streamdeck.playpause",
+      "Tooltip": "Play or pause the current audio",
+      "States": [
+        {
+          "TitleAlignment": "bottom"
+        }
+      ]
+    }
+  ]
+}

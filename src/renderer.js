@@ -42,11 +42,17 @@ import FunctionCoordination from './renderer/modules/function-coordination/index
 // Import keyboard manager for centralized keyboard shortcut management
 import KeyboardManager from './renderer/modules/keyboard-manager/index.js';
 
+// Import Stream Deck module for Stream Deck integration (commented out until initialization issues resolved)
+// import StreamDeckModule from './renderer/modules/stream-deck/stream-deck-module.js';
+
 // Function coordination instance - initialized after debug logger is available
 let functionCoordination = null;
 
 // Global keyboard manager instance
 let keyboardManager = null;
+
+// Global Stream Deck module instance (commented out until initialization issues resolved)
+// let streamDeckModule = null;
 
 // Data loading and initialization now handled by app-initialization module
 
@@ -137,6 +143,67 @@ import AppInitialization from './renderer/modules/app-initialization/index.js';
       }
     };
 
+    // Make emitAudioEvent globally available for Stream Deck handlers
+    window.emitAudioEvent = function(eventType, eventData) {
+      if (moduleRegistry.eventCoordination?.audioControlEvents?.emitAudioEvent) {
+        return moduleRegistry.eventCoordination.audioControlEvents.emitAudioEvent(eventType, eventData);
+      } else {
+        window.logWarn('Audio events module not available, falling back to basic emit');
+        // Basic fallback implementation
+        if (window.secureElectronAPI?.streamDeck?.updateState) {
+          let streamDeckData = null;
+          
+          if (eventType === 'audio:loop') {
+            streamDeckData = {
+              version: "1.0",
+              timestamp: new Date().toISOString(),
+              source: "mxvoice-audio",
+              action: "loopStateUpdate",
+              payload: {
+                loopEnabled: eventData.loopEnabled,
+                audioState: eventData.audioState || 'stopped',
+                currentSong: eventData.song || null,
+                volume: eventData.volume || 1.0,
+                reason: "user_toggled_loop"
+              }
+            };
+          } else if (eventType === 'audio:mute') {
+            streamDeckData = {
+              version: "1.0",
+              timestamp: new Date().toISOString(),
+              source: "mxvoice-audio",
+              action: "muteStateUpdate",
+              payload: {
+                muteEnabled: eventData.muteEnabled,
+                audioState: eventData.audioState || 'stopped',
+                currentSong: eventData.song || null,
+                volume: eventData.volume || 1.0,
+                reason: "user_toggled_mute"
+              }
+            };
+          } else if (eventType === 'audio:volume') {
+            streamDeckData = {
+              version: "1.0",
+              timestamp: new Date().toISOString(),
+              source: "mxvoice-audio",
+              action: "volumeStateUpdate",
+              payload: {
+                volume: eventData.volume,
+                audioState: eventData.audioState || 'stopped',
+                currentSong: eventData.song || null,
+                muteEnabled: eventData.muteEnabled || false,
+                reason: "user_changed_volume"
+              }
+            };
+          }
+          
+          if (streamDeckData) {
+            window.secureElectronAPI.streamDeck.updateState(streamDeckData);
+          }
+        }
+      }
+    };
+
     window.logInfo('All modules loaded successfully via bootstrap!');
     window.logInfo('Module Registry Summary:');
     window.logDebug('File Operations', !!moduleRegistry.fileOperations);
@@ -159,6 +226,18 @@ import AppInitialization from './renderer/modules/app-initialization/index.js';
 
     // Make module registry available for debugging and development
     window.moduleRegistry = moduleRegistry;
+    
+    // Expose specific modules for backward compatibility
+    if (moduleRegistry.hotkeys) {
+      window.hotkeysModule = moduleRegistry.hotkeys;
+      window.logInfo('Hotkeys module exposed globally');
+      
+      // Expose clearHotkeys function globally for HTML onclick handler
+      if (moduleRegistry.hotkeys.clearHotkeys) {
+        window.clearHotkeys = moduleRegistry.hotkeys.clearHotkeys.bind(moduleRegistry.hotkeys);
+        window.logInfo('clearHotkeys function exposed globally');
+      }
+    }
     
     // Ensure window.debugLog is available for modules
     if (moduleRegistry.debugLog && !window.debugLog) {
@@ -349,6 +428,481 @@ import AppInitialization from './renderer/modules/app-initialization/index.js';
               }
             });
           }
+          
+          // Loop state request handler for Stream Deck integration
+          if (typeof window.secureElectronAPI.events.onRequestLoopState === 'function') {
+            window.secureElectronAPI.events.onRequestLoopState(() => {
+              try {
+                // Get current loop state from DOM or shared state
+                let loopEnabled = false;
+                
+                // Try to get from shared state first
+                if (window.moduleRegistry?.sharedState) {
+                  loopEnabled = window.moduleRegistry.sharedState.get('loop') || false;
+                } else {
+                  // Fallback to DOM inspection
+                  const loopButton = document.getElementById('loop_button');
+                  loopEnabled = loopButton?.classList.contains('active') || false;
+                }
+                
+                // Send response back to main process
+                if (window.secureElectronAPI.streamDeck?.sendLoopStateResponse) {
+                  window.secureElectronAPI.streamDeck.sendLoopStateResponse(loopEnabled);
+                }
+              } catch (error) {
+                window.logWarn('Error handling loop state request:', error);
+                // Send false as fallback
+                if (window.secureElectronAPI.streamDeck?.sendLoopStateResponse) {
+                  window.secureElectronAPI.streamDeck.sendLoopStateResponse(false);
+                }
+              }
+            });
+          }
+          
+          // Mute state request handler for Stream Deck integration
+          if (typeof window.secureElectronAPI.events.onRequestMuteState === 'function') {
+            window.secureElectronAPI.events.onRequestMuteState(() => {
+              try {
+                // Get current mute state from DOM or sound object
+                let muteEnabled = false;
+                
+                // Try to get from sound object first if available
+                if (window.moduleRegistry?.sharedState) {
+                  const sound = window.moduleRegistry.sharedState.get('sound');
+                  if (sound && typeof sound.mute === 'function') {
+                    muteEnabled = sound.mute();
+                  } else {
+                    // Fallback to DOM inspection
+                    const muteButton = document.getElementById('mute_button');
+                    muteEnabled = muteButton?.classList.contains('active') || false;
+                  }
+                } else {
+                  // Fallback to DOM inspection
+                  const muteButton = document.getElementById('mute_button');
+                  muteEnabled = muteButton?.classList.contains('active') || false;
+                }
+                
+                // Send response back to main process
+                if (window.secureElectronAPI.streamDeck?.sendMuteStateResponse) {
+                  window.secureElectronAPI.streamDeck.sendMuteStateResponse(muteEnabled);
+                }
+              } catch (error) {
+                window.logWarn('Error handling mute state request:', error);
+                // Send false as fallback
+                if (window.secureElectronAPI.streamDeck?.sendMuteStateResponse) {
+                  window.secureElectronAPI.streamDeck.sendMuteStateResponse(false);
+                }
+              }
+            });
+          }
+
+          // Stream Deck command handlers for direct audio control
+          // Array to store all cleanup functions for proper resource management
+          const streamDeckCleanupFunctions = [];
+          
+          if (window.electronAPI?.onStreamDeckPause) {
+            const pauseCleanup = window.electronAPI.onStreamDeckPause(() => {
+              try {
+                window.logInfo('🎵 Stream Deck pause command received');
+                
+                // Enhanced debugging to understand the state
+                window.logInfo('🔍 Checking pausePlaying function availability...', {
+                  pausePlayingExists: typeof window.pausePlaying,
+                  pausePlayingFunction: window.pausePlaying ? 'available' : 'missing',
+                  moduleRegistry: !!window.moduleRegistry,
+                  audioModule: !!window.moduleRegistry?.audio,
+                  audioModulePause: window.moduleRegistry?.audio?.pausePlaying ? 'available' : 'missing'
+                });
+                
+                // Try multiple approaches to find and call pausePlaying
+                let pauseExecuted = false;
+                
+                // Method 1: Direct window function
+                if (window.pausePlaying && typeof window.pausePlaying === 'function') {
+                  window.pausePlaying();
+                  window.logInfo('🎵 Stream Deck pause executed via window.pausePlaying()');
+                  pauseExecuted = true;
+                } 
+                // Method 2: Via module registry
+                else if (window.moduleRegistry?.audio?.pausePlaying && typeof window.moduleRegistry.audio.pausePlaying === 'function') {
+                  window.moduleRegistry.audio.pausePlaying();
+                  window.logInfo('🎵 Stream Deck pause executed via moduleRegistry.audio.pausePlaying()');
+                  pauseExecuted = true;
+                }
+                // Method 3: Fallback - try to find in function registry
+                else if (window.functionCoordination?.getComponents()?.functionRegistry) {
+                  const functionRegistry = window.functionCoordination.getComponents().functionRegistry;
+                  const pauseFunc = functionRegistry.get('pausePlaying');
+                  if (pauseFunc && typeof pauseFunc === 'function') {
+                    pauseFunc();
+                    window.logInfo('🎵 Stream Deck pause executed via functionRegistry');
+                    pauseExecuted = true;
+                  }
+                }
+                
+                if (!pauseExecuted) {
+                  window.logWarn('❌ No pausePlaying function found for Stream Deck');
+                  window.logWarn('Available functions on window:', Object.keys(window).filter(key => typeof window[key] === 'function').slice(0, 10));
+                }
+              } catch (error) {
+                window.logError('❌ Error handling Stream Deck pause:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(pauseCleanup);
+            window.logInfo('Stream Deck pause handler registered');
+          }
+
+          if (window.electronAPI?.onStreamDeckStop) {
+            const stopCleanup = window.electronAPI.onStreamDeckStop(() => {
+              try {
+                window.logInfo('Stream Deck stop command received');
+                if (window.stopPlaying && typeof window.stopPlaying === 'function') {
+                  window.stopPlaying();
+                  window.logInfo('Stream Deck stop executed via stopPlaying()');
+                } else {
+                  window.logWarn('stopPlaying function not available for Stream Deck');
+                }
+              } catch (error) {
+                window.logError('Error handling Stream Deck stop:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(stopCleanup);
+            window.logInfo('Stream Deck stop handler registered');
+          }
+
+          if (window.electronAPI?.onStreamDeckResume) {
+            const resumeCleanup = window.electronAPI.onStreamDeckResume(() => {
+              try {
+                window.logInfo('Stream Deck play command received');
+                
+                // Check if there's audio that can be resumed
+                const currentSound = window.sharedState?.sound;
+                const isCurrentlyPaused = currentSound && !currentSound.playing();
+                
+                if (isCurrentlyPaused) {
+                  // Resume the paused audio instead of starting over
+                  window.logInfo('Audio is paused, resuming current track');
+                  if (window.pausePlaying && typeof window.pausePlaying === 'function') {
+                    window.pausePlaying(); // This will resume the paused audio
+                    window.logInfo('Stream Deck play executed via pausePlaying() to resume');
+                  } else {
+                    window.logWarn('pausePlaying function not available for resume');
+                  }
+                } else if (!currentSound || !currentSound.playing()) {
+                  // No audio playing/paused, so play selected song like the UI
+                  window.logInfo('No active audio, playing selected song');
+                  if (window.playSelected && typeof window.playSelected === 'function') {
+                    window.playSelected();
+                    window.logInfo('Stream Deck play executed via playSelected()');
+                  } else {
+                    window.logWarn('playSelected function not available for Stream Deck play');
+                  }
+                } else {
+                  // Something is already playing, don't interrupt
+                  window.logInfo('Audio already playing, no action taken');
+                }
+              } catch (error) {
+                window.logError('Error handling Stream Deck play:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(resumeCleanup);
+            window.logInfo('Stream Deck play handler registered');
+          }
+
+          if (window.electronAPI?.onStreamDeckPlayFile) {
+            const playFileCleanup = window.electronAPI.onStreamDeckPlayFile((filePath) => {
+              try {
+                window.logInfo('Stream Deck play file command received:', filePath);
+                if (window.playAudioFile && typeof window.playAudioFile === 'function') {
+                  window.playAudioFile(filePath);
+                  window.logInfo('Stream Deck play file executed via playAudioFile()');
+                } else {
+                  window.logWarn('playAudioFile function not available for Stream Deck');
+                }
+              } catch (error) {
+                window.logError('Error handling Stream Deck play file:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(playFileCleanup);
+            window.logInfo('Stream Deck play file handler registered');
+          }
+
+          if (window.electronAPI?.onStreamDeckPlaySong) {
+            const playSongCleanup = window.electronAPI.onStreamDeckPlaySong((songId) => {
+              try {
+                window.logInfo('Stream Deck play song command received:', songId);
+                if (window.playSong && typeof window.playSong === 'function') {
+                  window.playSong(songId);
+                  window.logInfo('Stream Deck play song executed via playSong()');
+                } else {
+                  window.logWarn('playSong function not available for Stream Deck');
+                }
+              } catch (error) {
+                window.logError('Error handling Stream Deck play song:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(playSongCleanup);
+            window.logInfo('Stream Deck play song handler registered');
+          }
+
+          if (window.electronAPI?.onStreamDeckSetVolume) {
+            const setVolumeCleanup = window.electronAPI.onStreamDeckSetVolume((volume) => {
+              try {
+                window.logInfo('🔊 Stream Deck set volume command received:', volume);
+                
+                // Update volume slider UI
+                const volumeSlider = document.getElementById('volume');
+                if (volumeSlider) {
+                  volumeSlider.value = Math.round(volume * 100);
+                  window.logInfo('🔊 Updated volume slider to:', volumeSlider.value);
+                }
+                
+                // Update sound object volume
+                if (window.sharedState) {
+                  const sound = window.sharedState.get('sound');
+                  if (sound) {
+                    sound.volume(volume);
+                    window.logInfo('🔊 Updated sound volume to:', volume);
+                  }
+                }
+                
+                // Also try legacy setVolume function if available
+                if (window.setVolume && typeof window.setVolume === 'function') {
+                  window.setVolume(volume);
+                  window.logInfo('🔊 Also called legacy setVolume function');
+                }
+                
+                // Emit volume state update event
+                let eventEmitted = false;
+                
+                // Try to emit via event coordination (if there's an emitVolumeEvent function)
+                if (window.moduleRegistry?.eventCoordination?.audioControlEvents?.emitVolumeEvent) {
+                  try {
+                    window.moduleRegistry.eventCoordination.audioControlEvents.emitVolumeEvent(volume);
+                    eventEmitted = true;
+                    window.logInfo('Stream Deck set volume - emitted event via event coordination');
+                  } catch (error) {
+                    window.logError('Stream Deck set volume - event coordination failed:', error);
+                  }
+                }
+                
+                // Fallback to direct emission
+                if (!eventEmitted) {
+                  try {
+                    if (window.emitAudioEvent) {
+                      const currentSong = window.sharedState?.get('currentSong');
+                      const sound = window.sharedState?.get('sound');
+                      const muteButton = document.getElementById('mute_button');
+                      
+                      let audioState = 'stopped';
+                      let muteEnabled = false;
+                      
+                      if (sound) {
+                        audioState = sound.playing() ? 'playing' : 'paused';
+                      }
+                      
+                      if (muteButton) {
+                        muteEnabled = muteButton.classList.contains('active');
+                      }
+                      
+                      window.emitAudioEvent('audio:volume', {
+                        volume: volume,
+                        audioState: audioState,
+                        song: currentSong,
+                        muteEnabled: muteEnabled,
+                        timestamp: new Date().toISOString()
+                      });
+                      
+                      window.logInfo('Stream Deck set volume - emitted event via direct fallback');
+                    } else {
+                      window.logWarn('Neither event coordination nor direct emitAudioEvent available for Stream Deck volume event');
+                    }
+                  } catch (error) {
+                    window.logError('Stream Deck set volume - direct emission also failed:', error);
+                  }
+                }
+              } catch (error) {
+                window.logError('Error handling Stream Deck set volume:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(setVolumeCleanup);
+            window.logInfo('Stream Deck set volume handler registered');
+          }
+
+          if (window.electronAPI?.onStreamDeckToggleLoop) {
+            const toggleLoopCleanup = window.electronAPI.onStreamDeckToggleLoop((enabled) => {
+              try {
+                let targetLoopState = enabled;
+                
+                // If enabled is not provided (undefined/null), toggle current state
+                if (enabled === undefined || enabled === null) {
+                  const currentLoopState = window.sharedState?.get('loop') || false;
+                  targetLoopState = !currentLoopState;
+                  window.logInfo('Stream Deck toggle loop - no state provided, toggling from:', currentLoopState, 'to:', targetLoopState);
+                } else {
+                  window.logInfo('Stream Deck toggle loop command received with explicit state:', enabled);
+                }
+                
+                // Update the loop state and UI
+                if (window.loop_on && typeof window.loop_on === 'function') {
+                  window.loop_on(targetLoopState);
+                  window.logInfo('Stream Deck toggle loop executed via loop_on() with state:', targetLoopState);
+                } else {
+                  window.logWarn('loop_on function not available for Stream Deck');
+                }
+                
+                // Update shared state
+                if (window.sharedState) {
+                  window.sharedState.set('loop', targetLoopState);
+                }
+                
+                // Emit Stream Deck event - try event coordination first, then fallback to direct
+                let eventEmitted = false;
+                
+                if (window.moduleRegistry?.eventCoordination?.audioControlEvents?.emitLoopEvent) {
+                  try {
+                    window.moduleRegistry.eventCoordination.audioControlEvents.emitLoopEvent(targetLoopState);
+                    eventEmitted = true;
+                    window.logInfo('Stream Deck toggle loop - emitted event via event coordination');
+                  } catch (error) {
+                    window.logError('Stream Deck toggle loop - event coordination failed:', error);
+                  }
+                }
+                
+                // Fallback to direct emission if event coordination didn't work
+                if (!eventEmitted) {
+                  try {
+                    // Import and use direct audio event emission
+                    if (window.emitAudioEvent) {
+                      const currentSong = window.sharedState?.get('currentSong');
+                      const sound = window.sharedState?.get('sound');
+                      
+                      let audioState = 'stopped';
+                      let volume = 1.0;
+                      
+                      if (sound) {
+                        audioState = sound.playing() ? 'playing' : 'paused';
+                        volume = sound.volume();
+                      }
+                      
+                      window.emitAudioEvent('audio:loop', {
+                        loopEnabled: targetLoopState,
+                        audioState: audioState,
+                        song: currentSong,
+                        volume: volume,
+                        timestamp: new Date().toISOString()
+                      });
+                      
+                      window.logInfo('Stream Deck toggle loop - emitted event via direct fallback');
+                    } else {
+                      window.logWarn('Neither event coordination nor direct emitAudioEvent available for Stream Deck loop event');
+                    }
+                  } catch (error) {
+                    window.logError('Stream Deck toggle loop - direct emission also failed:', error);
+                  }
+                }
+              } catch (error) {
+                window.logError('Error handling Stream Deck toggle loop:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(toggleLoopCleanup);
+            window.logInfo('Stream Deck toggle loop handler registered');
+          }
+
+          if (window.electronAPI?.onStreamDeckToggleMute) {
+            const toggleMuteCleanup = window.electronAPI.onStreamDeckToggleMute((enabled) => {
+              try {
+                let targetMuteState = enabled;
+                
+                // If enabled is not provided (undefined/null), toggle current state
+                if (enabled === undefined || enabled === null) {
+                  const muteButton = document.getElementById('mute_button');
+                  const currentMuteState = muteButton?.classList.contains('active') || false;
+                  targetMuteState = !currentMuteState;
+                  window.logInfo('Stream Deck toggle mute - no state provided, toggling from:', currentMuteState, 'to:', targetMuteState);
+                } else {
+                  window.logInfo('Stream Deck toggle mute command received with explicit state:', enabled);
+                }
+                
+                // Update the mute button UI
+                const muteButton = document.getElementById('mute_button');
+                if (muteButton) {
+                  if (targetMuteState) {
+                    muteButton.classList.add('active');
+                  } else {
+                    muteButton.classList.remove('active');
+                  }
+                  window.logInfo('Stream Deck toggle mute - updated UI with state:', targetMuteState);
+                } else {
+                  window.logWarn('Mute button not found in DOM');
+                }
+                
+                // Update sound object mute state
+                if (window.sharedState) {
+                  const sound = window.sharedState.get('sound');
+                  if (sound) {
+                    sound.mute(targetMuteState);
+                    const volEl = document.getElementById('volume');
+                    sound.volume(volEl ? (Number(volEl.value) || 0) / 100 : 1);
+                    window.logInfo('Stream Deck toggle mute - updated sound mute state:', targetMuteState);
+                  }
+                }
+                
+                // Emit Stream Deck event - try event coordination first, then fallback to direct
+                let eventEmitted = false;
+                
+                if (window.moduleRegistry?.eventCoordination?.audioControlEvents?.emitMuteEvent) {
+                  try {
+                    window.moduleRegistry.eventCoordination.audioControlEvents.emitMuteEvent(targetMuteState);
+                    eventEmitted = true;
+                    window.logInfo('Stream Deck toggle mute - emitted event via event coordination');
+                  } catch (error) {
+                    window.logError('Stream Deck toggle mute - event coordination failed:', error);
+                  }
+                }
+                
+                // Fallback to direct emission if event coordination didn't work
+                if (!eventEmitted) {
+                  try {
+                    if (window.emitAudioEvent) {
+                      const currentSong = window.sharedState?.get('currentSong');
+                      const sound = window.sharedState?.get('sound');
+                      
+                      let audioState = 'stopped';
+                      let volume = 1.0;
+                      
+                      if (sound) {
+                        audioState = sound.playing() ? 'playing' : 'paused';
+                        volume = sound.volume();
+                      }
+                      
+                      window.emitAudioEvent('audio:mute', {
+                        muteEnabled: targetMuteState,
+                        audioState: audioState,
+                        song: currentSong,
+                        volume: volume,
+                        timestamp: new Date().toISOString()
+                      });
+                      
+                      window.logInfo('Stream Deck toggle mute - emitted event via direct fallback');
+                    } else {
+                      window.logWarn('Neither event coordination nor direct emitAudioEvent available for Stream Deck mute event');
+                    }
+                  } catch (error) {
+                    window.logError('Stream Deck toggle mute - direct emission also failed:', error);
+                  }
+                }
+              } catch (error) {
+                window.logError('Error handling Stream Deck toggle mute:', error);
+              }
+            });
+            streamDeckCleanupFunctions.push(toggleMuteCleanup);
+            window.logInfo('Stream Deck toggle mute handler registered');
+          }
+          
+          // Store cleanup functions globally for proper resource management
+          window.streamDeckCleanupFunctions = streamDeckCleanupFunctions;
+          window.logInfo(`Registered ${streamDeckCleanupFunctions.length} Stream Deck event handlers for cleanup`);
         }
       } catch (bridgeError) {
         window.logWarn('Failed setting up secure API event bridges', { error: bridgeError?.message });
@@ -448,6 +1002,25 @@ import AppInitialization from './renderer/modules/app-initialization/index.js';
     } catch (error) {
       window.logError('Error setting up keyboard shortcuts', error);
     }
+
+    // Initialize Stream Deck module (commented out until initialization issues resolved)
+    /*
+    try {
+      window.logInfo('Initializing Stream Deck module...');
+      streamDeckModule = new StreamDeckModule();
+      
+      // Initialize the Stream Deck module
+      await streamDeckModule.initialize();
+      
+      window.logInfo('Stream Deck module initialized successfully!');
+      
+      // Make Stream Deck module available for debugging
+      window.streamDeckModule = streamDeckModule;
+      
+    } catch (error) {
+      window.logError('Error setting up Stream Deck module', error);
+    }
+    */
   } catch (error) {
     window.logError('Error loading modules', error);
     window.logError('Error stack', error.stack);
@@ -555,6 +1128,39 @@ document.addEventListener('DOMContentLoaded', async function () {
     const thead = document.querySelector('#search_results thead'); if (thead) thead.style.display = 'none';
   }
 });
+
+// Add cleanup mechanism for Stream Deck event handlers
+// This ensures proper resource management when the renderer process is destroyed
+function cleanupStreamDeckHandlers() {
+  try {
+    if (window.streamDeckCleanupFunctions && Array.isArray(window.streamDeckCleanupFunctions)) {
+      window.logInfo(`Cleaning up ${window.streamDeckCleanupFunctions.length} Stream Deck event handlers`);
+      
+      for (const cleanup of window.streamDeckCleanupFunctions) {
+        if (typeof cleanup === 'function') {
+          try {
+            cleanup();
+          } catch (cleanupError) {
+            window.logWarn('Error during Stream Deck handler cleanup:', cleanupError);
+          }
+        }
+      }
+      
+      // Clear the array after cleanup
+      window.streamDeckCleanupFunctions = [];
+      window.logInfo('Stream Deck event handlers cleanup completed');
+    }
+  } catch (error) {
+    window.logError('Error during Stream Deck cleanup process:', error);
+  }
+}
+
+// Register cleanup on window unload events
+window.addEventListener('beforeunload', cleanupStreamDeckHandlers);
+window.addEventListener('unload', cleanupStreamDeckHandlers);
+
+// Also make cleanup function available globally for manual cleanup if needed
+window.cleanupStreamDeckHandlers = cleanupStreamDeckHandlers;
 
 // Test Functions Module - Functions extracted to src/renderer/modules/test-utils/
 // testPhase2Migrations(), testDatabaseAPI(), testFileSystemAPI(), testStoreAPI(), testAudioAPI(), testSecurityFeatures() - All moved to test-utils module

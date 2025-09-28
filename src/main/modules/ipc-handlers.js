@@ -16,6 +16,9 @@ import { v4 as uuidv4 } from 'uuid';
 // Import file operations module
 import fileOperations from './file-operations.js';
 
+// Import Stream Deck module
+import streamDeckModule from './stream-deck.js';
+
 // Dependencies that will be injected
 let mainWindow;
 let db;
@@ -25,6 +28,7 @@ let autoUpdater;
 let debugLog;
 let logService;
 let updateState;
+let streamDeck;
 
 // Initialize the module with dependencies
 function initializeIpcHandlers(dependencies) {
@@ -36,9 +40,15 @@ function initializeIpcHandlers(dependencies) {
   debugLog = dependencies.debugLog;
   logService = dependencies.logService;
   updateState = dependencies.updateState || { downloaded: false };
+  streamDeck = dependencies.streamDeck;
   
   // Initialize file operations module
   fileOperations.initializeFileOperations(dependencies);
+  
+  // Initialize Stream Deck module
+  if (streamDeck) {
+    streamDeckModule.initializeStreamDeck(dependencies);
+  }
   
   registerAllHandlers();
 }
@@ -101,6 +111,162 @@ function registerAllHandlers() {
 
   ipcMain.handle('save-hotkey-file', async (event, hotkeyArray) => {
     return await fileOperations.saveHotkeysFile(hotkeyArray);
+  });
+
+  // Stream Deck hotkey query handlers - using state-based approach
+  ipcMain.handle('get-hotkey-tabs', async (event) => {
+    try {
+      // Use state-based approach via moduleRegistry
+      return await event.sender.executeJavaScript(`
+        (function() {
+          try {
+            // Check if hotkeys module is available
+            if (!window.moduleRegistry?.hotkeys) {
+              return {
+                success: false,
+                error: 'Hotkeys module not available',
+                tabs: [],
+                activeTab: 1
+              };
+            }
+            
+            const tabs = [];
+            const tabLinks = document.querySelectorAll('#hotkey_tabs .nav-link');
+            const activeLink = document.querySelector('#hotkey_tabs .nav-link.active');
+            
+            tabLinks.forEach((link, index) => {
+              tabs.push({
+                number: index + 1,
+                name: link.textContent || 'Tab ' + (index + 1),
+                isActive: link === activeLink
+              });
+            });
+            
+            const activeTabNumber = activeLink ? 
+              Array.from(tabLinks).indexOf(activeLink) + 1 : 1;
+            
+            return {
+              success: true,
+              tabs: tabs,
+              activeTab: activeTabNumber
+            };
+          } catch (error) {
+            return {
+              success: false,
+              error: error.message,
+              tabs: [],
+              activeTab: 1
+            };
+          }
+        })();
+      `);
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        tabs: [],
+        activeTab: 1
+      };
+    }
+  });
+
+  ipcMain.handle('get-hotkey-tab-content', async (event, tabNumber) => {
+    try {
+      // Use state-based approach via moduleRegistry
+      return await event.sender.executeJavaScript(`
+        (function() {
+          try {
+            const tabNumber = ${tabNumber};
+            
+            // Check if hotkeys module is available
+            if (!window.moduleRegistry?.hotkeys) {
+              return {
+                success: false,
+                error: 'Hotkeys module not available',
+                tabNumber: tabNumber,
+                tabName: 'Tab ' + tabNumber,
+                hotkeys: {},
+                songs: {}
+              };
+            }
+            
+            // Get the tab name from DOM (minimal DOM access)
+            const tabLink = document.querySelector('#hotkey_tabs .nav-link:nth-child(' + tabNumber + ')');
+            const tabName = tabLink ? tabLink.textContent : 'Tab ' + tabNumber;
+            
+            // Switch to the requested tab if it's not already active
+            const activeLink = document.querySelector('#hotkey_tabs .nav-link.active');
+            const targetLink = document.querySelector('#hotkey_tabs .nav-link:nth-child(' + tabNumber + ')');
+            
+            if (targetLink && targetLink !== activeLink) {
+              targetLink.click();
+              // Small delay to ensure tab switch completes
+              // This is still much better than pure DOM parsing
+            }
+            
+            // Now get the hotkey configuration using the module's state management
+            const hotkeyConfig = window.moduleRegistry.hotkeys.getHotkeyConfig();
+            
+            const hotkeys = {};
+            const songs = {};
+            
+            // Format the data for Stream Deck response
+            for (let i = 1; i <= 12; i++) {
+              const key = 'f' + i;
+              const songId = hotkeyConfig.hotkeys[key] || null;
+              
+              // Get the label (we still need minimal DOM access for display text)
+              let songLabel = '';
+              if (songId) {
+                const hotkeyElement = document.getElementById(key + '_hotkey');
+                const labelSpan = hotkeyElement?.querySelector('span');
+                songLabel = labelSpan?.textContent || '';
+              }
+              
+              hotkeys[key] = {
+                key: 'F' + i,
+                songId: songId,
+                label: songLabel
+              };
+              
+              if (songId) {
+                songs[songId] = {
+                  id: songId,
+                  label: songLabel
+                };
+              }
+            }
+            
+            return {
+              success: true,
+              tabNumber: tabNumber,
+              tabName: tabName,
+              hotkeys: hotkeys,
+              songs: songs,
+              configTimestamp: hotkeyConfig.timestamp
+            };
+          } catch (error) {
+            return {
+              success: false,
+              error: error.message,
+              tabNumber: ${tabNumber},
+              tabName: 'Tab ' + ${tabNumber},
+              hotkeys: {},
+              songs: {}
+            };
+          }
+        })();
+      `);
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        tabNumber: tabNumber,
+        tabName: 'Tab ' + tabNumber,
+        hotkeys: {},
+        songs: {}
+      };
+    }
   });
 
   ipcMain.handle('open-holding-tank-file', async () => {
@@ -1302,10 +1468,163 @@ function registerAllHandlers() {
     }
   });
 
+  // ===============================================
+  // STREAM DECK INTEGRATION HANDLERS
+  // ===============================================
+  
+  // Stream Deck server management
+  ipcMain.handle('streamdeck-start-server', async () => {
+    try {
+      const result = streamDeckModule.startServer();
+      return { success: result };
+    } catch (error) {
+      debugLog?.error('Stream Deck start server error:', { 
+        module: 'ipc-handlers', 
+        function: 'streamdeck-start-server',
+        error: error.message 
+      });
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('streamdeck-stop-server', async () => {
+    try {
+      const result = streamDeckModule.stopServer();
+      return { success: result };
+    } catch (error) {
+      debugLog?.error('Stream Deck stop server error:', { 
+        module: 'ipc-handlers', 
+        function: 'streamdeck-stop-server',
+        error: error.message 
+      });
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('streamdeck-get-status', async () => {
+    try {
+      const status = streamDeckModule.getServerStatus();
+      return { success: true, data: status };
+    } catch (error) {
+      debugLog?.error('Stream Deck get status error:', { 
+        module: 'ipc-handlers', 
+        function: 'streamdeck-get-status',
+        error: error.message 
+      });
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('streamdeck-update-config', async (event, config) => {
+    try {
+      streamDeckModule.updateConfig(config);
+      return { success: true };
+    } catch (error) {
+      debugLog?.error('Stream Deck update config error:', { 
+        module: 'ipc-handlers', 
+        function: 'streamdeck-update-config',
+        error: error.message 
+      });
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Stream Deck state updates (called from renderer)
+  ipcMain.handle('streamdeck-update-state', async (event, stateUpdates) => {
+    try {
+      streamDeckModule.updateState(stateUpdates);
+      return { success: true };
+    } catch (error) {
+      debugLog?.error('Stream Deck update state error:', { 
+        module: 'ipc-handlers', 
+        function: 'streamdeck-update-state',
+        error: error.message 
+      });
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get current loop state from renderer (used by Stream Deck for initial state)
+  ipcMain.handle('get-loop-state', async () => {
+    try {
+      // Request loop state from renderer
+      return await new Promise((resolve) => {
+        mainWindow.webContents.send('request-loop-state');
+        
+        // Set up one-time listener for response
+        const handleLoopState = (event, loopState) => {
+          ipcMain.removeListener('loop-state-response', handleLoopState);
+          resolve({ success: true, loopEnabled: loopState });
+        };
+        
+        ipcMain.once('loop-state-response', handleLoopState);
+        
+        // Timeout after 1 second
+        setTimeout(() => {
+          ipcMain.removeListener('loop-state-response', handleLoopState);
+          resolve({ success: true, loopEnabled: false }); // Default to false
+        }, 1000);
+      });
+    } catch (error) {
+      debugLog?.error('Get loop state error:', { 
+        module: 'ipc-handlers', 
+        function: 'get-loop-state',
+        error: error.message 
+      });
+      return { success: true, loopEnabled: false }; // Default to false on error
+    }
+  });
+
+  // Get current mute state from renderer (used by Stream Deck for initial state)
+  ipcMain.handle('get-mute-state', async () => {
+    try {
+      // Request mute state from renderer
+      return await new Promise((resolve) => {
+        mainWindow.webContents.send('request-mute-state');
+        
+        // Set up one-time listener for response
+        const handleMuteState = (event, muteState) => {
+          ipcMain.removeListener('mute-state-response', handleMuteState);
+          resolve({ success: true, muteEnabled: muteState });
+        };
+        
+        ipcMain.once('mute-state-response', handleMuteState);
+        
+        // Timeout after 1 second
+        setTimeout(() => {
+          ipcMain.removeListener('mute-state-response', handleMuteState);
+          resolve({ success: true, muteEnabled: false }); // Default to false
+        }, 1000);
+      });
+    } catch (error) {
+      debugLog?.error('Get mute state error:', { 
+        module: 'ipc-handlers', 
+        function: 'get-mute-state',
+        error: error.message 
+      });
+      return { success: true, muteEnabled: false }; // Default to false on error
+    }
+  });
+
+  // Stream Deck broadcast message
+  ipcMain.handle('streamdeck-broadcast', async (event, message) => {
+    try {
+      streamDeckModule.broadcastMessage(message);
+      return { success: true };
+    } catch (error) {
+      debugLog?.error('Stream Deck broadcast error:', { 
+        module: 'ipc-handlers', 
+        function: 'streamdeck-broadcast',
+        error: error.message 
+      });
+      return { success: false, error: error.message };
+    }
+  });
+
   debugLog?.info('✅ Secure IPC handlers registered successfully', { 
     module: 'ipc-handlers', 
     function: 'registerAllHandlers',
-    secureHandlersCount: 50
+    secureHandlersCount: 57
   });
 
   debugLog?.info('✅ All IPC handlers registered successfully (context isolation ready)', { 
@@ -1322,6 +1641,8 @@ function removeAllHandlers() {
   ipcMain.removeHandler('show-directory-picker');
   ipcMain.removeHandler('open-hotkey-file');
   ipcMain.removeHandler('save-hotkey-file');
+  ipcMain.removeHandler('get-hotkey-tabs');
+  ipcMain.removeHandler('get-hotkey-tab-content');
   ipcMain.removeHandler('open-holding-tank-file');
   ipcMain.removeHandler('save-holding-tank-file');
   ipcMain.removeHandler('restart-and-install-new-version');
@@ -1394,6 +1715,14 @@ function removeAllHandlers() {
   ipcMain.removeHandler('format-duration');
   ipcMain.removeHandler('validate-audio-file');
   ipcMain.removeHandler('sanitize-filename');
+  
+  // Stream Deck handlers
+  ipcMain.removeHandler('streamdeck-start-server');
+  ipcMain.removeHandler('streamdeck-stop-server');
+  ipcMain.removeHandler('streamdeck-get-status');
+  ipcMain.removeHandler('streamdeck-update-config');
+  ipcMain.removeHandler('streamdeck-update-state');
+  ipcMain.removeHandler('streamdeck-broadcast');
   
   // Remove legacy event listeners
   ipcMain.removeAllListeners('open-hotkey-file');

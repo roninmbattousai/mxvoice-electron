@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="144" height="144" viewBox="0 0 144 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="72" cy="72" r="70" fill="#2D2D30" stroke="#404040" stroke-width="2"/>
+  
+  <!-- Search magnifying glass -->
+  <circle cx="60" cy="60" r="20" stroke="#FFFFFF" stroke-width="4" fill="none" opacity="0.9"/>
+  <line x1="76" y1="76" x2="95" y2="95" stroke="#FFFFFF" stroke-width="4" opacity="0.9"/>
+  
+  <!-- Music note in magnifying glass -->
+  <circle cx="60" cy="65" r="3" fill="#66CCFF"/>
+  <line x1="63" y1="65" x2="63" y2="50" stroke="#66CCFF" stroke-width="2"/>
+  <path d="M 63 50 Q 70 48 70 52" stroke="#66CCFF" stroke-width="2" fill="none"/>
+</svg>

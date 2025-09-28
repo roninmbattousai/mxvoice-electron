@@ -117,14 +117,21 @@ export class KeyboardManager {
         // Case 1: Hotkey removal
         if (selected.closest('#hotkey-tab-content')) {
           this.logInfo('Delete key triggered for a hotkey');
-          selected.removeAttribute('songid');
-          const span = selected.querySelector('span');
-          if (span) span.textContent = '';
-          selected.classList.remove('active-hotkey', 'selected-row');
-          this.logInfo('Hotkey assignment removed via Delete key', { hotkeyId: selected.id });
-          if (window.hotkeysModule?.saveHotkeysToStore) {
-            window.hotkeysModule.saveHotkeysToStore();
-            this.logInfo('Hotkeys state saved after Delete');
+          // Use the proper hotkeys module method which includes confirmation and notifications
+          if (window.hotkeysModule?.removeFromHotkey) {
+            window.hotkeysModule.removeFromHotkey();
+            this.logInfo('Called hotkeys module removeFromHotkey method');
+          } else {
+            // Fallback: direct DOM manipulation if hotkeys module not available
+            selected.removeAttribute('songid');
+            const span = selected.querySelector('span');
+            if (span) span.textContent = '';
+            selected.classList.remove('active-hotkey', 'selected-row');
+            this.logInfo('Hotkey assignment removed via Delete key (fallback)', { hotkeyId: selected.id });
+            if (window.hotkeysModule?.saveHotkeysToStore) {
+              window.hotkeysModule.saveHotkeysToStore();
+              this.logInfo('Hotkeys state saved after Delete');
+            }
           }
           return;
         }

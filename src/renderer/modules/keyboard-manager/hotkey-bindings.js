@@ -37,29 +37,9 @@ export class HotkeyBindings {
       // Set up F1-F12 hotkey bindings
       this.setupFunctionKeys();
       
-      // Add Delete/Backspace key support for hotkey removal
-      this.logInfo('Setting up Delete/Backspace key binding for hotkey removal...');
-      Mousetrap.bind(['del', 'backspace'], (e) => {
-        window.debugLog?.info('Delete/Backspace key handler triggered', { event: e });
-        // Find the selected hotkey row
-        const selected = document.querySelector('.hotkeys .list-group-item.active-hotkey.selected-row');
-        if (!selected) {
-          window.debugLog?.info('Delete pressed but no hotkey row is selected');
-          return;
-        }
-        // Remove song assignment
-        selected.removeAttribute('songid');
-        const span = selected.querySelector('span');
-        if (span) span.textContent = '';
-        selected.classList.remove('active-hotkey', 'selected-row');
-        window.debugLog?.info('Hotkey assignment removed via Delete key', { hotkeyId: selected.id });
-        // Save updated hotkeys if needed
-        if (window.hotkeysModule && typeof window.hotkeysModule.saveHotkeysToStore === 'function') {
-          window.hotkeysModule.saveHotkeysToStore();
-          window.debugLog?.info('Hotkeys state saved after Delete');
-        }
-      });
-      this.logInfo('Delete/Backspace key binding for hotkey removal set up.');
+      // Delete/Backspace key support is now handled by the main keyboard manager
+      // to avoid conflicts and ensure proper hotkey removal with notifications
+      this.logInfo('Delete/Backspace key handling delegated to main keyboard manager.');
       this.isInitialized = true;
       this.logInfo('F1-F12 hotkey bindings initialized successfully');
       return true;
@@ -112,7 +92,10 @@ export class HotkeyBindings {
     try {
       this.logDebug(`Function key pressed: ${fkey}`);
       
-      if (window.playSongFromHotkey && typeof window.playSongFromHotkey === 'function') {
+      // Use the hotkeys module directly if available
+      if (window.hotkeysModule?.playSongFromHotkey && typeof window.hotkeysModule.playSongFromHotkey === 'function') {
+        window.hotkeysModule.playSongFromHotkey(fkey);
+      } else if (window.playSongFromHotkey && typeof window.playSongFromHotkey === 'function') {
         window.playSongFromHotkey(fkey);
       } else {
         this.logWarn(`playSongFromHotkey function not available for ${fkey}`);

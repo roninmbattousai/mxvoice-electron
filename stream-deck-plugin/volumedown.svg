@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="144" height="144" viewBox="0 0 144 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="72" cy="72" r="70" fill="#2D2D30" stroke="#404040" stroke-width="2"/>
+  
+  <!-- Speaker -->
+  <rect x="40" y="60" width="8" height="24" fill="#FFFFFF" opacity="0.9"/>
+  <polygon points="48,60 48,84 60,90 60,54" fill="#FFFFFF" opacity="0.9"/>
+  
+  <!-- Sound wave (single, quieter) -->
+  <path d="M 70 58 Q 80 65 80 72 Q 80 79 70 86" stroke="#FFFFFF" stroke-width="3" fill="none" opacity="0.5"/>
+  
+  <!-- Minus sign -->
+  <line x1="98" y1="72" x2="112" y2="72" stroke="#FF6666" stroke-width="3"/>
+</svg>

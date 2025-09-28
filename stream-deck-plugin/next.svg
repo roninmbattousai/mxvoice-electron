@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="144" height="144" viewBox="0 0 144 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="72" cy="72" r="70" fill="#2D2D30" stroke="#404040" stroke-width="2"/>
+  
+  <!-- Next arrows -->
+  <polygon points="45,50 45,94 75,72" fill="#FFFFFF" opacity="0.9"/>
+  <polygon points="70,50 70,94 100,72" fill="#FFFFFF" opacity="0.9"/>
+  
+  <!-- End bar -->
+  <rect x="105" y="50" width="4" height="44" fill="#FFFFFF" opacity="0.9"/>
+</svg>

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mx. Voice Stream Deck Plugin Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background-color: #2d2d30;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .section {
+            background-color: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #1177bb;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status.connected { background-color: #388a34; color: white; }
+        .status.disconnected { background-color: #d13438; color: white; }
+        .status.connecting { background-color: #ff8c00; color: white; }
+        
+        .log-display {
+            background-color: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .log-entry {
+            margin-bottom: 2px;
+        }
+        
+        .log-debug { color: #9cdcfe; }
+        .log-info { color: #d4d4d4; }
+        .log-warn { color: #dcdcaa; }
+        .log-error { color: #f44747; }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            background-color: #2d2d30;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0e639c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎛️ Mx. Voice Stream Deck Plugin Test</h1>
+            <p>Use this page to test the plugin functionality and view logs</p>
+            <p>Connection Status: <span id="connectionStatus" class="status disconnected">Not Connected</span></p>
+        </div>
+        
+        <div class="section">
+            <h3>🔌 Connection Testing</h3>
+            <button onclick="testConnection()">Test Mx. Voice Connection</button>
+            <button onclick="connectToMxVoice()">Connect to Mx. Voice</button>
+            <button onclick="disconnectFromMxVoice()">Disconnect</button>
+            <button onclick="forceReconnect()">Force Reconnect</button>
+        </div>
+        
+        <div class="section">
+            <h3>🎵 Action Testing</h3>
+            <button onclick="simulateAction('PLAY_PAUSE')">Play/Pause</button>
+            <button onclick="simulateAction('STOP')">Stop</button>
+            <button onclick="simulateAction('VOLUME_UP')">Volume Up</button>
+            <button onclick="simulateAction('VOLUME_DOWN')">Volume Down</button>
+            <button onclick="simulateAction('NEXT')">Next</button>
+            <button onclick="simulateAction('PREVIOUS')">Previous</button>
+        </div>
+        
+        <div class="section">
+            <h3>📝 Logging</h3>
+            <button onclick="clearLogs()">Clear Logs</button>
+            <button onclick="exportLogs()">Export Logs</button>
+            <button onclick="refreshLogs()">Refresh Display</button>
+            <button onclick="toggleLogLevel()">Toggle Debug</button>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="logCount">0</div>
+                    <div>Total Logs</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="errorCount">0</div>
+                    <div>Errors</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="sessionId">-</div>
+                    <div>Session ID</div>
+                </div>
+            </div>
+            
+            <h4>Live Log Output:</h4>
+            <div id="logDisplay" class="log-display">Initializing plugin test page...\n</div>
+        </div>
+    </div>
+
+    <!-- Include the plugin code -->
+    <script src="code.js"></script>
+    
+    <script>
+        // Test page functionality
+        let logDisplayElement = document.getElementById('logDisplay');
+        let originalConsoleLog = console.log;
+        let originalConsoleWarn = console.warn;
+        let originalConsoleError = console.error;
+        
+        // Override console methods to capture logs in the display
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            addToLogDisplay('info', args.join(' '));
+        };
+        
+        console.warn = function(...args) {
+            originalConsoleWarn.apply(console, args);
+            addToLogDisplay('warn', args.join(' '));
+        };
+        
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            addToLogDisplay('error', args.join(' '));
+        };
+        
+        function addToLogDisplay(level, message) {
+            const timestamp = new Date().toISOString().substring(11, 23);
+            const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${message}\n`;
+            
+            logDisplayElement.textContent += logEntry;
+            logDisplayElement.scrollTop = logDisplayElement.scrollHeight;
+            
+            updateStats();
+        }
+        
+        function updateStats() {
+            if (typeof PluginLogger !== 'undefined') {
+                const info = PluginLogger.getSessionInfo();
+                document.getElementById('logCount').textContent = info.logCount;
+                document.getElementById('errorCount').textContent = info.errorCount;
+                document.getElementById('sessionId').textContent = info.sessionId.substring(0, 8);
+                
+                const status = document.getElementById('connectionStatus');
+                if (info.connected) {
+                    status.textContent = 'Connected';
+                    status.className = 'status connected';
+                } else {
+                    status.textContent = 'Disconnected';
+                    status.className = 'status disconnected';
+                }
+            }
+        }
+        
+        function testConnection() {
+            addToLogDisplay('info', 'Testing connection to Mx. Voice...');
+            
+            const ws = new WebSocket('ws://127.0.0.1:8888');
+            
+            ws.onopen = () => {
+                addToLogDisplay('info', 'Connection test successful - Mx. Voice is running');
+                ws.close();
+            };
+            
+            ws.onerror = () => {
+                addToLogDisplay('error', 'Connection test failed - Mx. Voice not responding');
+            };
+        }
+        
+        function connectToMxVoice() {
+            if (typeof connectToMxVoice === 'function') {
+                addToLogDisplay('info', 'Attempting to connect to Mx. Voice...');
+                connectToMxVoice();
+            } else {
+                addToLogDisplay('error', 'Plugin functions not available');
+            }
+        }
+        
+        function disconnectFromMxVoice() {
+            if (typeof websocket !== 'undefined' && websocket) {
+                addToLogDisplay('info', 'Disconnecting from Mx. Voice...');
+                websocket.close();
+            } else {
+                addToLogDisplay('warn', 'No active connection to disconnect');
+            }
+        }
+        
+        function forceReconnect() {
+            if (typeof forceReconnect === 'function') {
+                addToLogDisplay('info', 'Forcing reconnection...');
+                forceReconnect();
+            } else {
+                addToLogDisplay('error', 'Force reconnect function not available');
+            }
+        }
+        
+        function simulateAction(action) {
+            addToLogDisplay('info', `Simulating action: ${action}`);
+            
+            if (typeof onKeyDown === 'function') {
+                const actionUuid = ACTIONS[action];
+                if (actionUuid) {
+                    onKeyDown(actionUuid, 'test-context', {}, {}, 0);
+                } else {
+                    addToLogDisplay('error', `Unknown action: ${action}`);
+                }
+            } else {
+                addToLogDisplay('error', 'Action functions not available');
+            }
+        }
+        
+        function clearLogs() {
+            logDisplayElement.textContent = 'Logs cleared.\n';
+            if (typeof PluginLogger !== 'undefined') {
+                PluginLogger.logs = [];
+            }
+            updateStats();
+        }
+        
+        function exportLogs() {
+            let logs = logDisplayElement.textContent;
+            if (typeof PluginLogger !== 'undefined') {
+                logs = PluginLogger.exportLogs();
+            }
+            
+            const blob = new Blob([logs], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mx-voice-plugin-logs-${new Date().toISOString().substring(0, 19)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            addToLogDisplay('info', 'Logs exported');
+        }
+        
+        function refreshLogs() {
+            if (typeof PluginLogger !== 'undefined') {
+                const recentLogs = PluginLogger.getRecentLogs(20);
+                logDisplayElement.textContent = 'Recent plugin logs:\n';
+                recentLogs.forEach(log => {
+                    logDisplayElement.textContent += log.formatted + '\n';
+                });
+                logDisplayElement.scrollTop = logDisplayElement.scrollHeight;
+            }
+            updateStats();
+        }
+        
+        function toggleLogLevel() {
+            if (typeof PluginLogger !== 'undefined') {
+                PluginLogger.currentLevel = PluginLogger.currentLevel === 0 ? 1 : 0;
+                const level = PluginLogger.currentLevel === 0 ? 'DEBUG' : 'INFO';
+                addToLogDisplay('info', `Log level set to ${level}`);
+            }
+        }
+        
+        // Initialize
+        setTimeout(() => {
+            addToLogDisplay('info', 'Test page loaded - plugin should be initializing');
+            updateStats();
+            
+            // Check if plugin functions are available
+            const functions = ['PluginLogger', 'connectToMxVoice', 'ACTIONS', 'onKeyDown'];
+            functions.forEach(func => {
+                if (typeof window[func] !== 'undefined') {
+                    addToLogDisplay('info', `✓ ${func} is available`);
+                } else {
+                    addToLogDisplay('warn', `✗ ${func} is not available`);
+                }
+            });
+            
+            // Auto-refresh stats every few seconds
+            setInterval(updateStats, 3000);
+        }, 1000);
+    </script>
+</body>
+</html>

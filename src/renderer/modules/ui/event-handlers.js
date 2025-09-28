@@ -53,12 +53,26 @@ function initializeEventHandlers(options = {}) {
    * Rename the currently active hotkey tab
    */
   async function renameHotkeyTab() {
+    console.log('🔄 UI Module renameHotkeyTab called');
     const currentName = document.querySelector('#hotkey_tabs .nav-link.active')?.textContent || '';
     const newName = await customPrompt("Enter a new name for this tab:", currentName, "Rename Hotkey Tab");
     if (newName && newName.trim() !== "") {
       const link = document.querySelector('#hotkey_tabs .nav-link.active');
-      if (link) link.textContent = newName;
+      if (link) {
+        const oldName = link.textContent;
+        link.textContent = newName;
+        console.log(`🔄 Tab renamed from "${oldName}" to "${newName}"`);
+      }
       saveHotkeysToStore();
+      
+      // Emit hotkey change notification for Stream Deck
+      if (window.hotkeysModule?.notifyHotkeyChange) {
+        console.log('🚀 Calling notifyHotkeyChange for tab-name-changed');
+        window.hotkeysModule.notifyHotkeyChange('tab-name-changed', null);
+      } else {
+        console.warn('❌ hotkeysModule.notifyHotkeyChange not available');
+      }
+      
       return { success: true, newName: newName };
     } else {
       return { success: false, error: 'Invalid name' };

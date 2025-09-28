@@ -157,17 +157,8 @@ export class NavigationShortcuts {
    */
   setupDeletionControls() {
     try {
-      // Backspace and Delete for removal/deletion
-      Mousetrap.bind(["backspace", "del"], () => {
-        return this.handleDeletion();
-      });
-      
-      this.bindings.set("backspace|del", {
-        key: "backspace|del",
-        handler: 'handleDeletion',
-        context: 'global',
-        description: 'Delete selected item based on context'
-      });
+      // Delete/Backspace handling is now centralized in the main keyboard manager
+      // to avoid conflicts and ensure proper handling across all contexts
       
       this.logInfo('Deletion control shortcuts set up successfully');
     } catch (error) {
@@ -322,11 +313,11 @@ export class NavigationShortcuts {
         }
       } else if (hotkeys && sel && hotkeys.contains(sel)) {
         this.logDebug("Selected row is in hotkey tab");
-        // If in hotkey tab, remove from hotkey
-        if (window.removeFromHotkey && typeof window.removeFromHotkey === 'function') {
-          window.removeFromHotkey();
+        // If in hotkey tab, remove from hotkey using the proper module method
+        if (window.hotkeysModule?.removeFromHotkey && typeof window.hotkeysModule.removeFromHotkey === 'function') {
+          window.hotkeysModule.removeFromHotkey();
         } else {
-          this.logWarn('removeFromHotkey function not available');
+          this.logWarn('hotkeysModule.removeFromHotkey function not available');
         }
       } else {
         this.logDebug("Selected row is in search results");

@@ -90,9 +90,9 @@ class HotkeysModule {
       this.sendToHotkeys = hotkeyOperations.sendToHotkeys.bind(this);
       this.hotkeyDrop = hotkeyUI.hotkeyDrop.bind(this);
       this.allowHotkeyDrop = hotkeyUI.allowHotkeyDrop.bind(this);
-      this.switchToHotkeyTab = hotkeyUI.switchToHotkeyTab.bind(this);
-      this.renameHotkeyTab = hotkeyUI.renameHotkeyTab.bind(this);
-      this.removeFromHotkey = hotkeyOperations.removeFromHotkey.bind(this);
+      // switchToHotkeyTab - using class method with notifications, not hotkeyUI version
+      // renameHotkeyTab - using class method with notifications, not hotkeyUI version
+      // removeFromHotkey is implemented in the main class, don't override
       this.exportHotkeyConfig = hotkeyOperations.exportHotkeyConfig.bind(this);
       this.importHotkeyConfig = hotkeyOperations.importHotkeyConfig.bind(this);
       this.clearHotkeyConfig = hotkeyOperations.clearHotkeyConfig.bind(this);
@@ -125,6 +125,9 @@ class HotkeysModule {
 
     // Event listeners are now handled by EventCoordination system
     // No need to call this.setupEventListeners() here
+    
+    // Set up tab switch event listeners for direct clicking
+    this.setupTabSwitchListeners();
 
     debugLog?.info('✅ Hotkeys Module initialized', {
       module: 'hotkeys',
@@ -240,6 +243,9 @@ class HotkeysModule {
                 module: 'hotkeys',
                 function: 'saveHotkeysToStore',
               });
+              
+              // Notify Stream Deck of hotkey changes
+              this.notifyHotkeyChange('updated');
             } else {
               debugLog?.warn(
                 '❌ Failed to save hotkeys to store:',
@@ -255,6 +261,98 @@ class HotkeysModule {
             });
           });
       }
+    }
+  }
+
+  /**
+   * Notify Stream Deck about hotkey changes
+   * @param {string} action - Action type (added, removed, cleared, tab-name-changed, etc.)
+   * @param {string} hotkeyKey - Optional hotkey key that was changed (f1, f2, etc. without _hotkey suffix)
+   */
+  notifyHotkeyChange(action, hotkeyKey = null, additionalData = {}) {
+    try {
+      debugLog?.info(`🚀 notifyHotkeyChange called with action: ${action}, hotkeyKey: ${hotkeyKey}`, {
+        module: 'hotkeys',
+        function: 'notifyHotkeyChange',
+        action,
+        hotkeyKey,
+        additionalData
+      });
+      
+      // Get current active tab number
+      const activeLink = document.querySelector('#hotkey_tabs .nav-link.active');
+      const tabLinks = document.querySelectorAll('#hotkey_tabs .nav-link');
+      const activeTabNumber = activeLink ? 
+        Array.from(tabLinks).indexOf(activeLink) + 1 : 1;
+      
+      // Clean hotkeyKey - remove _hotkey suffix if present for consistency
+      const cleanHotkeyKey = hotkeyKey ? hotkeyKey.replace('_hotkey', '') : null;
+      
+      const notificationData = {
+        tabNumber: activeTabNumber,
+        tabName: activeLink?.textContent?.trim() || `Tab ${activeTabNumber}`,
+        action: action,
+        hotkeyKey: cleanHotkeyKey,
+        timestamp: Date.now(),
+        ...additionalData // Merge any additional data
+      };
+      
+      // Use the Stream Deck broadcast API if available
+      if (window.secureElectronAPI?.streamDeck?.broadcast) {
+        // Get current hotkey configuration for the payload
+        const currentConfig = this.getHotkeyConfig();
+        
+        const hotkeyUpdate = {
+          version: "1.0",
+          timestamp: new Date().toISOString(),
+          source: "mxvoice-streamdeck",
+          action: "hotkeyStateUpdate",
+          payload: {
+            success: true,
+            changedTab: activeTabNumber,
+            changedTabName: notificationData.tabName,
+            changeAction: action,
+            hotkeyKey: cleanHotkeyKey,
+            hotkeys: currentConfig.hotkeys, // Dictionary format: {f1: "songId", f2: "songId", ...}
+            timestamp: Date.now(),
+            // Include additional data for tab-switched events
+            ...(action === 'tab-switched' && additionalData && {
+              fromTab: additionalData.fromTab,
+              toTab: additionalData.toTab,
+              fromTabName: additionalData.fromTabName || null,
+              toTabName: additionalData.tabName || notificationData.tabName
+            })
+          }
+        };
+        
+        window.secureElectronAPI.streamDeck.broadcast(hotkeyUpdate);
+        
+        debugLog?.info(`Stream Deck hotkey notification sent: ${action}`, {
+          module: 'hotkeys',
+          function: 'notifyHotkeyChange',
+          data: notificationData
+        });
+      } else {
+        // Fallback: Try direct IPC if Stream Deck API not available
+        if (this.electronAPI && this.electronAPI.ipcRenderer) {
+          this.electronAPI.ipcRenderer.send(`hotkey-${action}`, notificationData);
+          debugLog?.info(`Stream Deck hotkey notification sent via fallback IPC: ${action}`, {
+            module: 'hotkeys',
+            function: 'notifyHotkeyChange',
+            data: notificationData
+          });
+        } else {
+          debugLog?.warn('Stream Deck API and fallback IPC not available for hotkey notifications', {
+            module: 'hotkeys',
+            function: 'notifyHotkeyChange'
+          });
+        }
+      }
+    } catch (error) {
+      debugLog?.error('Failed to notify Stream Deck of hotkey change:', error, {
+        module: 'hotkeys',
+        function: 'notifyHotkeyChange'
+      });
     }
   }
 
@@ -531,6 +629,11 @@ class HotkeysModule {
               element.setAttribute('songid', song_id);
             }
             this.saveHotkeysToStore();
+            
+            // Notify Stream Deck of hotkey changes
+            // Extract clean hotkey key (f1, f2, etc.) from element ID
+            const cleanHotkeyKey = element?.id ? element.id.replace('_hotkey', '') : null;
+            this.notifyHotkeyChange('added', cleanHotkeyKey);
           } else {
             debugLog?.warn('❌ Failed to get song by ID:', result.error, {
               module: 'hotkeys',
@@ -607,7 +710,7 @@ class HotkeysModule {
       debugLog?.info('🧹 Executing clearHotkeys logic after confirmation...', { module: 'hotkeys', function: 'clearHotkeys' });
       
       // Find the currently active hotkey tab
-      const activeTab = document.querySelector('.hotkeys.show.active');
+      const activeTab = document.querySelector('.hotkeys.show.active') || document.querySelector('.hotkeys.active') || document.querySelector('.hotkeys.show');
       debugLog?.info('🔍 Active tab found:', { activeTab: !!activeTab, tabId: activeTab?.id });
       
       if (activeTab) {
@@ -630,6 +733,7 @@ class HotkeysModule {
         debugLog?.error('❌ No active hotkey tab found with selector .hotkeys.show.active', { module: 'hotkeys' });
       }
       this.saveHotkeysToStore();
+      this.notifyHotkeyChange('cleared');
     }
   }
 
@@ -860,16 +964,159 @@ class HotkeysModule {
 
   /**
    * Switch to hotkey tab
-   * Changes the active hotkey tab
+   * Changes the active hotkey tab and emits notification
    *
    * @param {number} tab - Tab number to switch to
    */
   switchToHotkeyTab(tab) {
     try {
-      import('../ui/bootstrap-adapter.js').then(({ showTab }) =>
-        showTab(`#hotkey_tabs li:nth-child(${tab}) a`)
-      );
-    } catch {}
+      // Get current active tab info before switching
+      const currentTab = document.querySelector('#hotkey_tabs .nav-link.active');
+      const currentTabNumber = currentTab ? 
+        Array.from(document.querySelectorAll('#hotkey_tabs .nav-link')).indexOf(currentTab) + 1 : null;
+      
+      // Check if this is a duplicate notification within the last 500ms
+      const now = Date.now();
+      if (this._lastNotification && 
+          this._lastNotification.fromTab === currentTabNumber && 
+          this._lastNotification.toTab === tab &&
+          (now - this._lastNotification.timestamp) < 500) {
+        debugLog?.debug('Skipping duplicate programmatic tab switch', {
+          fromTab: currentTabNumber,
+          toTab: tab
+        });
+        return;
+      }
+      
+      import('../ui/bootstrap-adapter.js').then(({ showTab }) => {
+        showTab(`#hotkey_tabs li:nth-child(${tab}) a`);
+        
+        // Wait a moment for the tab switch to complete, then notify
+        setTimeout(() => {
+          const newActiveTab = document.querySelector('#hotkey_tabs .nav-link.active');
+          const newTabName = newActiveTab?.textContent || tab.toString();
+          
+          // Only emit notification if the tab actually changed
+          // Also set a flag to prevent duplicate notifications from Bootstrap events
+          if (currentTabNumber !== tab) {
+            this._programmaticSwitch = true; // Flag to prevent Bootstrap listener duplicate
+            
+            // Record this notification
+            const notificationTime = Date.now();
+            this._lastNotification = {
+              fromTab: currentTabNumber,
+              toTab: tab,
+              timestamp: notificationTime,
+              signature: `${currentTabNumber}->${tab}-${notificationTime}`
+            };
+            
+            this.notifyHotkeyChange('tab-switched', null, {
+              fromTab: currentTabNumber,
+              toTab: tab,
+              tabName: newTabName
+            });
+            
+            // Clear the flag after a short delay
+            setTimeout(() => { this._programmaticSwitch = false; }, 200);
+            
+            debugLog?.info(`✅ Tab switched programmatically from ${currentTabNumber} to ${tab} (${newTabName})`, {
+              module: 'hotkeys',
+              function: 'switchToHotkeyTab',
+              fromTab: currentTabNumber,
+              toTab: tab,
+              tabName: newTabName
+            });
+          }
+        }, 100); // Small delay to ensure DOM updates
+      });
+    } catch (error) {
+      debugLog?.error('Error switching to hotkey tab:', error);
+    }
+  }
+
+  /**
+   * Set up tab switch event listeners
+   * Listens for Bootstrap tab events to detect when users click on tabs
+   */
+  setupTabSwitchListeners() {
+    try {
+      const hotkeyTabs = document.getElementById('hotkey_tabs');
+      if (!hotkeyTabs) {
+        debugLog?.warn('Hotkey tabs not found for switch listeners');
+        return;
+      }
+
+      // Initialize last notification tracking
+      this._lastNotification = null;
+
+      // Listen for Bootstrap tab shown events
+      hotkeyTabs.addEventListener('shown.bs.tab', (event) => {
+        // Skip if this was triggered by programmatic switching
+        if (this._programmaticSwitch) {
+          debugLog?.debug('Skipping Bootstrap tab event - programmatic switch in progress');
+          return;
+        }
+
+        const targetTab = event.target;
+        const tabLinks = document.querySelectorAll('#hotkey_tabs .nav-link');
+        const newTabNumber = Array.from(tabLinks).indexOf(targetTab) + 1;
+        const newTabName = targetTab.textContent?.trim() || newTabNumber.toString();
+        
+        // Get previous tab info if available
+        const relatedTarget = event.relatedTarget;
+        const fromTabNumber = relatedTarget ? 
+          Array.from(tabLinks).indexOf(relatedTarget) + 1 : null;
+        const fromTabName = relatedTarget?.textContent?.trim() || null;
+
+        // Create notification signature to prevent duplicates
+        const notificationSignature = `${fromTabNumber}->${newTabNumber}-${Date.now()}`;
+        
+        // Check if this is a duplicate notification within the last 500ms
+        const now = Date.now();
+        if (this._lastNotification && 
+            this._lastNotification.fromTab === fromTabNumber && 
+            this._lastNotification.toTab === newTabNumber &&
+            (now - this._lastNotification.timestamp) < 500) {
+          debugLog?.debug('Skipping duplicate tab switch notification', {
+            signature: notificationSignature,
+            lastSignature: this._lastNotification.signature
+          });
+          return;
+        }
+
+        // Record this notification
+        this._lastNotification = {
+          fromTab: fromTabNumber,
+          toTab: newTabNumber,
+          timestamp: now,
+          signature: notificationSignature
+        };
+
+        // Emit tab-switched notification
+        this.notifyHotkeyChange('tab-switched', null, {
+          fromTab: fromTabNumber,
+          toTab: newTabNumber,
+          tabName: newTabName,
+          fromTabName: fromTabName
+        });
+
+        debugLog?.info(`✅ Tab switch detected via user click: ${fromTabNumber} → ${newTabNumber} (${newTabName})`, {
+          module: 'hotkeys',
+          function: 'setupTabSwitchListeners',
+          fromTab: fromTabNumber,
+          toTab: newTabNumber,
+          tabName: newTabName,
+          fromTabName: fromTabName
+        });
+      });
+
+      debugLog?.info('Tab switch listeners set up successfully', {
+        module: 'hotkeys',
+        function: 'setupTabSwitchListeners'
+      });
+    } catch (error) {
+      debugLog?.error('Error setting up tab switch listeners:', error);
+    }
   }
 
   /**
@@ -887,8 +1134,21 @@ class HotkeysModule {
     );
     if (newName && newName.trim() !== '') {
       const active = document.querySelector('#hotkey_tabs .nav-link.active');
-      if (active) active.textContent = newName;
-      this.saveHotkeysToStore();
+      if (active) {
+        const oldName = active.textContent;
+        active.textContent = newName;
+        this.saveHotkeysToStore();
+        
+        // Notify Stream Deck of tab name change
+        this.notifyHotkeyChange('tab-name-changed', null);
+        
+        debugLog?.info('✅ Tab renamed from "${oldName}" to "${newName}"', {
+          module: 'hotkeys',
+          function: 'renameHotkeyTab',
+          oldName,
+          newName
+        });
+      }
       return { success: true, newName: newName };
     } else {
       return { success: false, error: 'Invalid name' };
@@ -897,84 +1157,89 @@ class HotkeysModule {
 
   /**
    * Remove song from hotkey
-   * Removes the selected song from its hotkey assignment
+   * Removes the selected song from its hotkey assignment without confirmation
    */
   removeFromHotkey() {
-    const songId = document
-      .getElementById('selected_row')
-      ?.getAttribute('songid');
+    // First, find the active tab to ensure we're working in the correct context
+    const activeLink = document.querySelector('#hotkey_tabs .nav-link.active');
+    if (!activeLink) {
+      debugLog?.info('No active hotkey tab found', {
+        module: 'hotkeys',
+        function: 'removeFromHotkey'
+      });
+      return;
+    }
+    
+    const href = activeLink.getAttribute('href');
+    if (!href || !href.startsWith('#')) {
+      debugLog?.info('Active tab has invalid href', {
+        module: 'hotkeys',
+        function: 'removeFromHotkey'
+      });
+      return;
+    }
+    
+    const tabId = href.substring(1);
+    const activeTabContent = document.getElementById(tabId);
+    if (!activeTabContent) {
+      debugLog?.info(`Active tab content not found: ${tabId}`, {
+        module: 'hotkeys',
+        function: 'removeFromHotkey'
+      });
+      return;
+    }
+    
+    // Look for selected row ONLY within the active tab content
+    let selectedElement = activeTabContent.querySelector('#selected_row');
+    
+    if (!selectedElement) {
+      // Try various combinations of selectors for hotkey elements within active tab only
+      selectedElement = activeTabContent.querySelector('.selected-row') ||
+                       activeTabContent.querySelector('.active-hotkey.selected-row') ||
+                       activeTabContent.querySelector('li.active-hotkey.selected-row') ||
+                       activeTabContent.querySelector('li.selected-row') ||
+                       activeTabContent.querySelector('[id$="_hotkey"].selected-row') ||
+                       activeTabContent.querySelector('[id$="_hotkey"].active-hotkey');
+    }
+    
+    const songId = selectedElement?.getAttribute('songid');
     debugLog?.info('removeFromHotkey called, songId:', songId, {
       module: 'hotkeys',
       function: 'removeFromHotkey',
     });
     debugLog?.info(
-      'selected_row element:',
-      document.getElementById('selected_row'),
+      'selected element:',
+      selectedElement,
       { module: 'hotkeys', function: 'removeFromHotkey' }
     );
+    debugLog?.info('element classes:', selectedElement?.classList?.toString(), {
+      module: 'hotkeys', function: 'removeFromHotkey'
+    });
+    debugLog?.info('element id:', selectedElement?.id, {
+      module: 'hotkeys', function: 'removeFromHotkey'
+    });
 
     if (songId) {
-      debugLog?.info(`Preparing to remove song ${songId} from hotkey`, {
+      debugLog?.info(`Removing song ${songId} from hotkey`, {
         module: 'hotkeys',
         function: 'removeFromHotkey',
       });
-      // Use secure database query to fetch title for confirmation
-      if (this.electronAPI?.database?.query) {
-        this.electronAPI.database
-          .query('SELECT title FROM mrvoice WHERE ID = ?', [songId])
-          .then((result) => {
-            const title =
-              result?.success && result.data?.[0]?.title
-                ? result.data[0].title
-                : null;
-            const message = title
-              ? `Are you sure you want to remove ${title} from this hotkey?`
-              : `Are you sure you want to clear this hotkey?`;
-            customConfirm(message, () => {
-              debugLog?.info('Proceeding with removal from hotkey', {
-                module: 'hotkeys',
-                function: 'removeFromHotkey',
-              });
-              const selected = document.getElementById('selected_row');
-              if (selected) {
-                selected.removeAttribute('songid');
-                const span = selected.querySelector('span');
-                if (span) span.textContent = '';
-                selected.removeAttribute('id');
-              }
-              this.saveHotkeysToStore();
-              debugLog?.info('Hotkey cleared successfully', {
-                module: 'hotkeys',
-                function: 'removeFromHotkey',
-              });
-            });
-          })
-          .catch(() => {
-            // Fallback: confirm without title
-            customConfirm(`Are you sure you want to clear this hotkey?`, () => {
-              const selected = document.getElementById('selected_row');
-              if (selected) {
-                selected.removeAttribute('songid');
-                const span = selected.querySelector('span');
-                if (span) span.textContent = '';
-                selected.removeAttribute('id');
-              }
-              this.saveHotkeysToStore();
-            });
-          });
-      } else {
-        // Confirm without title if database not available
-        customConfirm(`Are you sure you want to clear this hotkey?`, () => {
-          const selected = document.getElementById('selected_row');
-          if (selected) {
-            selected.removeAttribute('songid');
-            const span = selected.querySelector('span');
-            if (span) span.textContent = '';
-            selected.removeAttribute('id');
-          }
-          this.saveHotkeysToStore();
-        });
+      
+      // Remove the hotkey assignment immediately without confirmation
+      if (selectedElement) {
+        selectedElement.removeAttribute('songid');
+        const span = selectedElement.querySelector('span');
+        if (span) span.textContent = '';
+        // Keep the ID attribute (like f1_hotkey) so F-keys continue to work
       }
+      this.saveHotkeysToStore();
+      // Extract clean hotkey key if we have a selected element
+      const cleanHotkeyKey = selectedElement?.id ? selectedElement.id.replace('_hotkey', '') : null;
+      this.notifyHotkeyChange('removed', cleanHotkeyKey);
+      debugLog?.info('Hotkey cleared successfully', {
+        module: 'hotkeys',
+        function: 'removeFromHotkey',
+      });
     } else {
       debugLog?.info('No songId found on selected row', {
         module: 'hotkeys',

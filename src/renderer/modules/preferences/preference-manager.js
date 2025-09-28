@@ -37,14 +37,16 @@ function initializePreferenceManager(options = {}) {
     // Use new store API for loading preferences
     if (electronAPI && electronAPI.store) {
       try {
-        const [dbDir, musicDir, hotkeyDir, fadeSeconds, debugLogPref, prereleasePref, screenModePref] = await Promise.all([
+        const [dbDir, musicDir, hotkeyDir, fadeSeconds, debugLogPref, prereleasePref, screenModePref, streamDeckEnabled, streamDeckPort] = await Promise.all([
           electronAPI.store.get("database_directory"),
           electronAPI.store.get("music_directory"),
           electronAPI.store.get("hotkey_directory"),
           electronAPI.store.get("fade_out_seconds"),
           electronAPI.store.get("debug_log_enabled"),
           electronAPI.store.get("prerelease_updates"),
-          electronAPI.store.get("screen_mode")
+          electronAPI.store.get("screen_mode"),
+          electronAPI.store.get("streamdeck_enabled"),
+          electronAPI.store.get("streamdeck_port")
         ]);
         
         if (dbDir.success) { const el = document.getElementById('preferences-database-directory'); if (el) el.value = dbDir.value || ''; }
@@ -54,6 +56,8 @@ function initializePreferenceManager(options = {}) {
         if (debugLogPref.success) { const el = document.getElementById('preferences-debug-log-enabled'); if (el) el.checked = !!debugLogPref.value; }
         if (prereleasePref.success) { const el = document.getElementById('preferences-prerelease-updates'); if (el) el.checked = !!prereleasePref.value; }
         if (screenModePref.success) { const el = document.getElementById('preferences-screen-mode'); if (el) el.value = screenModePref.value || 'auto'; }
+        if (streamDeckEnabled.success) { const el = document.getElementById('preferences-streamdeck-enabled'); if (el) el.checked = !!streamDeckEnabled.value; }
+        if (streamDeckPort.success) { const el = document.getElementById('preferences-streamdeck-port'); if (el) el.value = streamDeckPort.value || '8888'; }
       } catch (error) {
         await debugLog.error('Failed to load preferences', { 
           function: "loadPreferences",

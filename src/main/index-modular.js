@@ -42,6 +42,7 @@ if (process.env.APP_TEST_MODE === '1' || E2E_USER_DATA_DIR) {
 import * as appSetup from './modules/app-setup.js';
 import * as ipcHandlers from './modules/ipc-handlers.js';
 import * as fileOperations from './modules/file-operations.js';
+import streamDeckModule from './modules/stream-deck.js';
 import initializeMainDebugLog from './modules/debug-log.js';
 import { initMainLogService } from './modules/log-service.js';
 
@@ -571,7 +572,9 @@ async function initializeModules() {
     fileOperations,
     debugLog,
     updateState,
-    logService
+    logService,
+    streamDeck: streamDeckModule,
+    ipcMain
   };
 
   // Initialize each module

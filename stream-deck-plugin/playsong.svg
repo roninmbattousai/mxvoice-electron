@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="144" height="144" viewBox="0 0 144 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="72" cy="72" r="70" fill="#2D2D30" stroke="#404040" stroke-width="2"/>
+  
+  <!-- Music note -->
+  <circle cx="55" cy="85" r="8" fill="#FFFFFF" opacity="0.9"/>
+  <line x1="63" y1="85" x2="63" y2="45" stroke="#FFFFFF" stroke-width="4" opacity="0.9"/>
+  <path d="M 63 45 Q 85 40 85 50 L 85 70" stroke="#FFFFFF" stroke-width="4" fill="none" opacity="0.9"/>
+  <circle cx="85" cy="70" r="6" fill="#FFFFFF" opacity="0.9"/>
+  
+  <!-- Play arrow overlay -->
+  <polygon points="90,55 90,75 105,65" fill="#66FF66" opacity="0.8"/>
+</svg>

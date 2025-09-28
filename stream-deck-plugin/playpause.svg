@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="144" height="144" viewBox="0 0 144 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="72" cy="72" r="70" fill="#2D2D30" stroke="#404040" stroke-width="2"/>
+  
+  <!-- Play triangle (left side) -->
+  <polygon points="45,50 45,94 75,72" fill="#FFFFFF" opacity="0.9"/>
+  
+  <!-- Pause bars (right side) -->
+  <rect x="85" y="50" width="8" height="44" fill="#FFFFFF" opacity="0.9"/>
+  <rect x="99" y="50" width="8" height="44" fill="#FFFFFF" opacity="0.9"/>
+  
+  <!-- Separator line -->
+  <line x1="79" y1="45" x2="79" y2="99" stroke="#666666" stroke-width="1" opacity="0.6"/>
+</svg>

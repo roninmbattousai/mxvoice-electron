@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Mx Voice Property Inspector</title>
+    <style>
+        body {
+            margin: 10px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2D2D30;
+            color: #CCCCCC;
+        }
+        
+        .sdWrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .sdRow {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #FFFFFF;
+        }
+        
+        input, select {
+            padding: 8px;
+            border: 1px solid #464647;
+            border-radius: 4px;
+            background-color: #3C3C3C;
+            color: #CCCCCC;
+            font-size: 12px;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #007ACC;
+        }
+        
+        .description {
+            font-size: 11px;
+            color: #999999;
+            margin-top: 2px;
+        }
+        
+        .action-specific {
+            display: none;
+        }
+        
+        .action-specific.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="sdWrapper">
+        <!-- Play Song Action Settings -->
+        <div id="playsong-settings" class="action-specific">
+            <div class="sdRow">
+                <label for="songId">Song ID:</label>
+                <input type="text" id="songId" placeholder="Enter song ID" />
+                <div class="description">The ID of the song to play</div>
+            </div>
+            
+            <div class="sdRow">
+                <label for="filePath">File Path:</label>
+                <input type="text" id="filePath" placeholder="Enter file path" />
+                <div class="description">Alternative: Direct path to audio file</div>
+            </div>
+        </div>
+        
+        <!-- Search Action Settings -->
+        <div id="search-settings" class="action-specific">
+            <div class="sdRow">
+                <label for="searchQuery">Search Query:</label>
+                <input type="text" id="searchQuery" placeholder="Enter search term" />
+                <div class="description">Search term for Quick Search action</div>
+            </div>
+            
+            <div class="sdRow">
+                <label for="searchCategory">Search Category:</label>
+                <select id="searchCategory">
+                    <option value="">All Categories</option>
+                    <option value="SOUN">Soundtracks</option>
+                    <option value="UNC">Uncategorized</option>
+                </select>
+                <div class="description">Limit search to specific category</div>
+            </div>
+        </div>
+        
+        <!-- Volume Action Settings -->
+        <div id="volume-settings" class="action-specific">
+            <div class="sdRow">
+                <label for="volumeStep">Volume Step:</label>
+                <input type="number" id="volumeStep" min="0.01" max="1.0" step="0.01" value="0.1" />
+                <div class="description">Volume change amount (0.01 to 1.0)</div>
+            </div>
+        </div>
+        
+        <!-- Change Tab Action Settings -->
+        <div id="changetab-settings" class="action-specific">
+            <div class="sdRow">
+                <label for="tabNumber">Tab Number:</label>
+                <select id="tabNumber">
+                    <option value="1">Tab 1</option>
+                    <option value="2">Tab 2</option>
+                    <option value="3">Tab 3</option>
+                    <option value="4">Tab 4</option>
+                    <option value="5">Tab 5</option>
+                </select>
+                <div class="description">The hotkey tab number to switch to (1-5)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let actionInfo = null;
+        let settings = {};
+
+        function connectElgatoStreamDeckSocket(inPort, inUUID, inMessageType, inApplicationInfo, inActionInfo) {
+            actionInfo = JSON.parse(inActionInfo);
+            websocket = new WebSocket('ws://127.0.0.1:' + inPort);
+
+            websocket.onopen = function () {
+                let registerEvent = {
+                    event: inMessageType,
+                    uuid: inUUID
+                };
+                websocket.send(JSON.stringify(registerEvent));
+                
+                // Show appropriate settings based on action
+                showActionSettings();
+                
+                // Load current settings
+                loadSettings();
+            };
+
+            websocket.onmessage = function (evt) {
+                let jsonObj = JSON.parse(evt.data);
+                if (jsonObj.event === 'didReceiveSettings') {
+                    settings = jsonObj.payload.settings;
+                    loadSettings();
+                }
+            };
+        }
+
+        function showActionSettings() {
+            // Hide all settings sections
+            document.querySelectorAll('.action-specific').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Show appropriate section based on action UUID
+            const actionUUID = actionInfo?.action || '';
+            if (actionUUID.includes('playsong')) {
+                document.getElementById('playsong-settings').classList.add('active');
+            } else if (actionUUID.includes('search')) {
+                document.getElementById('search-settings').classList.add('active');
+            } else if (actionUUID.includes('volume')) {
+                document.getElementById('volume-settings').classList.add('active');
+            } else if (actionUUID.includes('changetab')) {
+                document.getElementById('changetab-settings').classList.add('active');
+            }
+        }
+
+        function loadSettings() {
+            // Load all possible settings
+            const elements = {
+                'songId': settings.songId || '',
+                'filePath': settings.filePath || '',
+                'searchQuery': settings.searchQuery || '',
+                'searchCategory': settings.searchCategory || '',
+                'volumeStep': settings.volumeStep || 0.1,
+                'tabNumber': settings.tabNumber || '1'
+            };
+            
+            Object.keys(elements).forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.value = elements[id];
+                }
+            });
+        }
+
+        function saveSettings() {
+            settings.songId = document.getElementById('songId')?.value || settings.songId;
+            settings.filePath = document.getElementById('filePath')?.value || settings.filePath;
+            settings.searchQuery = document.getElementById('searchQuery')?.value || settings.searchQuery;
+            settings.searchCategory = document.getElementById('searchCategory')?.value || settings.searchCategory;
+            settings.volumeStep = parseFloat(document.getElementById('volumeStep')?.value || settings.volumeStep || 0.1);
+            settings.tabNumber = document.getElementById('tabNumber')?.value || settings.tabNumber;
+
+            if (websocket) {
+                let setSettingsEvent = {
+                    event: 'setSettings',
+                    context: actionInfo.context,
+                    payload: settings
+                };
+                websocket.send(JSON.stringify(setSettingsEvent));
+            }
+        }
+
+        // Save settings when values change
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = ['songId', 'filePath', 'searchQuery', 'searchCategory', 'volumeStep', 'tabNumber'];
+            inputs.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    const eventType = element.tagName === 'SELECT' ? 'change' : 'input';
+                    element.addEventListener(eventType, saveSettings);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

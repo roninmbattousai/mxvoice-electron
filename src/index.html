@@ -591,6 +591,41 @@
                 </div>
               </fieldset>
 
+              <fieldset>
+                <legend>Stream Deck Integration</legend>
+                <div class="row g-2 mb-3">
+                  <div class="col-sm-9 offset-sm-3">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" role="switch" id="preferences-streamdeck-enabled">
+                      <label class="form-check-label" for="preferences-streamdeck-enabled">
+                        Enable Stream Deck integration
+                      </label>
+                    </div>
+                    <small class="form-text text-muted">Allow Stream Deck devices to control audio playback and song selection.</small>
+                  </div>
+                </div>
+                <div class="row g-2 mb-3" id="streamdeck-port-settings">
+                  <label for="preferences-streamdeck-port" class="col-sm-3 col-form-label">WebSocket Port</label>
+                  <div class="col-sm-2">
+                    <input type="number" class="form-control" id="preferences-streamdeck-port" min="1024" max="65535" value="8888">
+                  </div>
+                  <div class="col-sm-7">
+                    <small class="form-text text-muted">Port number for Stream Deck plugin communication (1024-65535)</small>
+                  </div>
+                </div>
+                <div class="row g-2 mb-3" id="streamdeck-server-controls">
+                  <div class="col-sm-3"></div>
+                  <div class="col-sm-9">
+                    <button type="button" class="btn btn-success btn-sm me-2" id="streamdeck-start-server">Start Server</button>
+                    <button type="button" class="btn btn-danger btn-sm me-2" id="streamdeck-stop-server">Stop Server</button>
+                    <div class="mt-2">
+                      <span class="badge" id="streamdeck-status-badge">Disconnected</span>
+                      <small class="text-muted ms-2" id="streamdeck-connection-info">No connections</small>
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
+
             </div>
             <div class="modal-footer">
               <div class="me-auto">
@@ -697,6 +732,7 @@
 
   </body>
 
+  <script src="renderer/modules/stream-deck/stream-deck-preferences.js" type="module"></script>
   <script src="renderer.js" type="module"></script>
 
 </html>

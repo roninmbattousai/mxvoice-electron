@@ -283,6 +283,21 @@ const secureElectronAPI = {
     deleteSelectedSong: () => ipcRenderer.invoke('delete-selected-song')
   },
   
+  // Stream Deck operations - secure Stream Deck integration
+  streamDeck: {
+    startServer: () => ipcRenderer.invoke('streamdeck-start-server'),
+    stopServer: () => ipcRenderer.invoke('streamdeck-stop-server'),
+    getStatus: () => ipcRenderer.invoke('streamdeck-get-status'),
+    regenerateToken: () => ipcRenderer.invoke('streamdeck-regenerate-token'),
+    getConfig: () => ipcRenderer.invoke('streamdeck-get-config'),
+    updateConfig: (config) => ipcRenderer.invoke('streamdeck-update-config', config),
+    sendToStreamDeck: (data) => ipcRenderer.invoke('streamdeck-send-data', data),
+    updateState: (stateUpdates) => ipcRenderer.invoke('streamdeck-update-state', stateUpdates),
+    broadcast: (message) => ipcRenderer.invoke('streamdeck-broadcast', message),
+    sendLoopStateResponse: (loopState) => ipcRenderer.send('loop-state-response', loopState),
+    sendMuteStateResponse: (muteState) => ipcRenderer.send('mute-state-response', muteState)
+  },
+  
   // Event listeners - secure event handling (limited and safe)
   events: {
     onFkeyLoad: (callback) => {
@@ -383,6 +398,67 @@ const secureElectronAPI = {
       return () => ipcRenderer.removeListener('delete_selected_song', handler);
     },
     
+    onRequestLoopState: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('request-loop-state', handler);
+      return () => ipcRenderer.removeListener('request-loop-state', handler);
+    },
+    
+    onRequestMuteState: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('request-mute-state', handler);
+      return () => ipcRenderer.removeListener('request-mute-state', handler);
+    },
+    
+    // Stream Deck event handlers
+    onStreamDeckPlayFile: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_play_file', handler);
+      return () => ipcRenderer.removeListener('streamdeck_play_file', handler);
+    },
+    
+    onStreamDeckPlaySong: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_play_song', handler);
+      return () => ipcRenderer.removeListener('streamdeck_play_song', handler);
+    },
+    
+    onStreamDeckResume: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_resume', handler);
+      return () => ipcRenderer.removeListener('streamdeck_resume', handler);
+    },
+    
+    onStreamDeckPause: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_pause', handler);
+      return () => ipcRenderer.removeListener('streamdeck_pause', handler);
+    },
+    
+    onStreamDeckStop: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_stop', handler);
+      return () => ipcRenderer.removeListener('streamdeck_stop', handler);
+    },
+    
+    onStreamDeckSetVolume: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_set_volume', handler);
+      return () => ipcRenderer.removeListener('streamdeck_set_volume', handler);
+    },
+    
+    onStreamDeckToggleLoop: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_toggle_loop', handler);
+      return () => ipcRenderer.removeListener('streamdeck_toggle_loop', handler);
+    },
+    
+    onStreamDeckToggleMute: (callback) => {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on('streamdeck_toggle_mute', handler);
+      return () => ipcRenderer.removeListener('streamdeck_toggle_mute', handler);
+    },
+    
     removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
   },
   
@@ -436,6 +512,15 @@ function exposeSecureAPI(injectedDebugLog) {
         onBulkAddDialogLoad: secureElectronAPI.events.onBulkAddDialogLoad,
         onAddDialogLoad: secureElectronAPI.events.onAddDialogLoad,
         onDisplayReleaseNotes: secureElectronAPI.events.onDisplayReleaseNotes,
+        // Stream Deck event handlers
+        onStreamDeckPlayFile: secureElectronAPI.events.onStreamDeckPlayFile,
+        onStreamDeckPlaySong: secureElectronAPI.events.onStreamDeckPlaySong,
+        onStreamDeckResume: secureElectronAPI.events.onStreamDeckResume,
+        onStreamDeckPause: secureElectronAPI.events.onStreamDeckPause,
+        onStreamDeckStop: secureElectronAPI.events.onStreamDeckStop,
+        onStreamDeckSetVolume: secureElectronAPI.events.onStreamDeckSetVolume,
+        onStreamDeckToggleLoop: secureElectronAPI.events.onStreamDeckToggleLoop,
+        onStreamDeckToggleMute: secureElectronAPI.events.onStreamDeckToggleMute,
         removeAllListeners: secureElectronAPI.events.removeAllListeners,
         database: secureElectronAPI.database,
         fileSystem: secureElectronAPI.fileSystem,
@@ -445,6 +530,7 @@ function exposeSecureAPI(injectedDebugLog) {
         os: secureElectronAPI.os,
         utils: secureElectronAPI.utils,
         testing: secureElectronAPI.testing,
+        streamDeck: secureElectronAPI.streamDeck,
         // Provide logs under legacy namespace for compatibility with existing renderer code
         logs: secureElectronAPI.logs
       });

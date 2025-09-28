@@ -56,7 +56,9 @@ function initializeSettingsController(options = {}) {
         fade_out_seconds: (document.getElementById('preferences-fadeout-seconds')?.value) || '',
         debug_log_enabled: !!document.getElementById('preferences-debug-log-enabled')?.checked,
         prerelease_updates: !!document.getElementById('preferences-prerelease-updates')?.checked,
-        screen_mode: (document.getElementById('preferences-screen-mode')?.value) || 'auto'
+        screen_mode: (document.getElementById('preferences-screen-mode')?.value) || 'auto',
+        streamdeck_enabled: !!document.getElementById('preferences-streamdeck-enabled')?.checked,
+        streamdeck_port: parseInt(document.getElementById('preferences-streamdeck-port')?.value) || 8888
       };
       
       // Save all preferences
@@ -68,15 +70,38 @@ function initializeSettingsController(options = {}) {
           electronAPI.store.set("fade_out_seconds", preferences.fade_out_seconds),
           electronAPI.store.set("debug_log_enabled", preferences.debug_log_enabled),
           electronAPI.store.set("prerelease_updates", preferences.prerelease_updates),
-          electronAPI.store.set("screen_mode", preferences.screen_mode)
+          electronAPI.store.set("screen_mode", preferences.screen_mode),
+          electronAPI.store.set("streamdeck_enabled", preferences.streamdeck_enabled),
+          electronAPI.store.set("streamdeck_port", preferences.streamdeck_port)
         ]);
         
         const successCount = results.filter(result => result.success).length;
-        if (successCount === 7) {
+        if (successCount === 9) {
           debugLog?.info('All preferences saved successfully', { 
             function: "savePreferences",
-            data: { successCount, totalPreferences: 7 }
+            data: { successCount, totalPreferences: 9 }
           });
+          
+          // Handle Stream Deck server state changes
+          if (window.secureElectronAPI?.streamDeck) {
+            try {
+              const currentStatus = await window.secureElectronAPI.streamDeck.getStatus();
+              if (preferences.streamdeck_enabled && currentStatus.data && !currentStatus.data.running) {
+                // Enable Stream Deck and start server
+                await window.secureElectronAPI.streamDeck.startServer();
+                debugLog?.info('Stream Deck server started via preferences', { function: "savePreferences" });
+              } else if (!preferences.streamdeck_enabled && currentStatus.data && currentStatus.data.running) {
+                // Disable Stream Deck and stop server
+                await window.secureElectronAPI.streamDeck.stopServer();
+                debugLog?.info('Stream Deck server stopped via preferences', { function: "savePreferences" });
+              }
+            } catch (error) {
+              debugLog?.error('Error managing Stream Deck server state', { 
+                function: "savePreferences",
+                error: error.message 
+              });
+            }
+          }
           
           // Apply new theme immediately if screen mode preference changed
           debugLog?.info('Checking theme management availability', { 

@@ -9,6 +9,7 @@
 import sharedState from '../shared-state.js';
 import { howlerUtils, createHowl } from './audio-utils.js';
 import { createProbeFromHowler } from './audio-probe.js';
+import { emitAudioEvent, AUDIO_STATES } from './audio-events.js';
 
 // Import debug logger - use lazy getter for proper initialization timing
 function getDebugLog() {
@@ -174,7 +175,34 @@ function playSongWithFilename(filename, row, song_id) {
                     .getElementById('stop_button')
                     ?.removeAttribute('disabled');
 
-                  // E2E: ensure probe is attached once WebAudio is active
+                // Store current song metadata in shared state for use in pause/stop events
+                const currentSongMetadata = {
+                  id: song_id,
+                  title: row.title || '',
+                  artist: row.artist || '',
+                  category: row.category || '',
+                  info: row.info || '',
+                  filename: filename,
+                  duration: Math.round(sound.duration()),
+                  position: 0  // Initial position when starting playback
+                };
+                sharedState.set('currentSong', currentSongMetadata);
+
+                // Emit audio:play event for Stream Deck integration
+                getDebugLog()?.info('🎵 STREAM DECK: Emitting audio:play event', {
+                  module: 'audio-manager',
+                  function: 'playSongWithFilename',
+                  eventData: {
+                    audioState: AUDIO_STATES.PLAYING,
+                    song: currentSongMetadata
+                  }
+                });
+                emitAudioEvent('audio:play', {
+                  audioState: AUDIO_STATES.PLAYING,
+                  song: currentSongMetadata,
+                  volume: (Number(document.getElementById('volume')?.value) || 0) / 100,
+                  timestamp: new Date().toISOString()
+                });                  // E2E: ensure probe is attached once WebAudio is active
                   if (window.electronTest?.isE2E && !window.electronTest?.audioProbe) {
                     createAndInstallProbe();
                   }
@@ -185,6 +213,25 @@ function playSongWithFilename(filename, row, song_id) {
                     function: 'playSongWithFilename',
                   });
                   song_ended();
+                  
+                  // Emit audio:stop event for Stream Deck integration
+                  emitAudioEvent('audio:stop', {
+                    audioState: AUDIO_STATES.STOPPED,
+                    reason: 'ended',
+                    song: {
+                      id: song_id,
+                      title: row.title || '',
+                      artist: row.artist || '',
+                      category: row.category || '',
+                      info: row.info || '',
+                      filename: filename
+                    },
+                    timestamp: new Date().toISOString()
+                  });
+                  
+                  // Clear stored song metadata
+                  sharedState.set('currentSong', null);
+                  
                   const loop = sharedState.get('loop');
                   const autoplay = sharedState.get('autoplay');
                   const holdingTankMode = sharedState.get('holdingTankMode');
@@ -319,6 +366,35 @@ function playSongWithFilename(filename, row, song_id) {
                   .getElementById('stop_button')
                   ?.removeAttribute('disabled');
 
+                // Store current song metadata in shared state for use in pause/stop events
+                const currentSongMetadata = {
+                  id: song_id,
+                  title: row.title || '',
+                  artist: row.artist || '',
+                  category: row.category || '',
+                  info: row.info || '',
+                  filename: filename,
+                  duration: Math.round(sound.duration()),
+                  position: 0  // Initial position when starting playback
+                };
+                sharedState.set('currentSong', currentSongMetadata);
+
+                // Emit audio:play event for Stream Deck integration
+                getDebugLog()?.info('🎵 STREAM DECK: Emitting audio:play event (secondary path)', {
+                  module: 'audio-manager',
+                  function: 'playSongWithFilename',
+                  eventData: {
+                    audioState: AUDIO_STATES.PLAYING,
+                    song: currentSongMetadata
+                  }
+                });
+                emitAudioEvent('audio:play', {
+                  audioState: AUDIO_STATES.PLAYING,
+                  song: currentSongMetadata,
+                  volume: (Number(document.getElementById('volume')?.value) || 0) / 100,
+                  timestamp: new Date().toISOString()
+                });
+
                 // E2E: ensure probe is attached once WebAudio is active
                 try {
                   if (window.electronTest?.isE2E && !window.electronTest?.audioProbe && window.Howler?.usingWebAudio && window.Howler?.masterGain && window.Howler?.ctx) {
@@ -345,6 +421,25 @@ function playSongWithFilename(filename, row, song_id) {
                   function: 'playSongWithFilename',
                 });
                 song_ended();
+                
+                // Emit audio:stop event for Stream Deck integration
+                emitAudioEvent('audio:stop', {
+                  audioState: AUDIO_STATES.STOPPED,
+                  reason: 'ended',
+                  song: {
+                    id: song_id,
+                    title: row.title || '',
+                    artist: row.artist || '',
+                    category: row.category || '',
+                    info: row.info || '',
+                    filename: filename
+                  },
+                  timestamp: new Date().toISOString()
+                });
+                
+                // Clear stored song metadata
+                sharedState.set('currentSong', null);
+                
                 const loop = sharedState.get('loop');
                 const autoplay = sharedState.get('autoplay');
                 const holdingTankMode = sharedState.get('holdingTankMode');
